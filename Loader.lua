@@ -1,13 +1,14 @@
--- ══════════════════════════════════════════════════════════════
--- GITHUB LOADER
--- ══════════════════════════════════════════════════════════════
 local REPO = "https://raw.githubusercontent.com/Pistgoat/PISTA-V10/main/"
 
 local function execModule(name)
-    local source = game:HttpGet(REPO .. name, true)
-    local fn = loadstring(source)
+    local ok, source = pcall(game.HttpGet, game, REPO .. name, true)
+    if not ok or not source or source == "" then
+        warn("[WolfVXPE Loader] Failed to fetch " .. name)
+        return
+    end
+    local fn, err = loadstring(source)
     if not fn then
-        warn("[WolfVXPE Loader] Failed to compile " .. name)
+        warn("[WolfVXPE Loader] Failed to compile " .. name .. ": " .. tostring(err))
         return
     end
     local mod = fn()
