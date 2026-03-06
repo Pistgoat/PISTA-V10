@@ -1,4 +1,28 @@
+--[[
+    ██╗    ██╗ ██████╗ ██╗     ███████╗    ██╗   ██╗██╗  ██╗██████╗ ███████╗
+    ██║    ██║██╔═══██╗██║     ██╔════╝    ██║   ██║╚██╗██╔╝██╔══██╗██╔════╝
+    ██║ █╗ ██║██║   ██║██║     █████╗      ██║   ██║ ╚███╔╝ ██████╔╝█████╗
+    ██║███╗██║██║   ██║██║     ██╔══╝      ╚██╗ ██╔╝ ██╔██╗ ██╔═══╝ ██╔══╝
+    ╚███╔███╔╝╚██████╔╝███████╗██║          ╚████╔╝ ██╔╝ ██╗██║     ███████╗
+     ╚══╝╚══╝  ╚═════╝ ╚══════╝╚═╝           ╚═══╝  ╚═╝  ╚═╝╚═╝     ╚══════╝
 
+    WOLFVXPE  (REWRITE)
+    Originally by pistademon | Rewritten & Enhanced Edition
+    Vape Kill Aura Engine  •  KB Reducer  •  Aim Assist  •  ESP  •  FPS
+
+    MODULAR LOADER — loads 7 modules in dependency order:
+      Module1_GUI.lua        → Splash, Colors, Library, Window, Toast
+      Module2_KillAura.lua   → Vape EntityLib, Bedwars, KA Engine, KATab
+      Module3_KBReducer.lua  → CombatTab creation, KB Reducer section
+      Module4_AimAssist.lua  → Aim Assist logic + AA section on CombatTab
+      Module5_FPSBoost.lua   → ESP logic/tab, FPS tab, Ping stabilizer
+      Module6_Credits.lua    → Credits tab, Changelog tab
+      Module7_Profile.lua    → Profile save/load, state tables, auto-save
+]]
+
+-- ══════════════════════════════════════════════════════════════
+-- SERVICES  (cached once at top — fastest possible lookup)
+-- ══════════════════════════════════════════════════════════════
 local Players          = game:GetService("Players")
 local RunService       = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -13,15 +37,15 @@ local PlayerGui   = LocalPlayer:WaitForChild("PlayerGui")
 local Mouse       = LocalPlayer:GetMouse()
 local Camera      = workspace.CurrentCamera
 
-
+-- Fast local refs to built-ins (micro-optimise hot paths)
 local tinsert, tremove, tclone = table.insert, table.remove, table.clone
 local mfloor, mcos, mrad, mabs = math.floor, math.cos, math.rad, math.abs
 local v3new, cf3new = Vector3.new, CFrame.new
 
-
+-- ── cloneref safety wrapper ───────────────────────────────────
 local cloneref = cloneref or function(obj) return obj end
 
-
+-- ── Anti-AFK ─────────────────────────────────────────────────
 local ok, VirtualUser = pcall(function() return game:GetService("VirtualUser") end)
 if ok and VirtualUser then
     LocalPlayer.Idled:Connect(function()
@@ -31,12 +55,15 @@ if ok and VirtualUser then
     end)
 end
 
-
+-- ══════════════════════════════════════════════════════════════
+-- CHARACTER HELPERS
+-- ══════════════════════════════════════════════════════════════
 local function getChar()     return LocalPlayer.Character end
 local function getRoot()     local c=getChar(); return c and c:FindFirstChild("HumanoidRootPart") end
 local function getHumanoid() local c=getChar(); return c and c:FindFirstChild("Humanoid") end
 
-
+-- ══════════════════════════════════════════════════════════════
+-- SHARED CONTEXT TABLE
 -- Every module receives this table and populates it with its
 -- own exports so downstream modules can reference them.
 -- ══════════════════════════════════════════════════════════════
@@ -72,10 +99,18 @@ local ctx = {
     getHumanoid= getHumanoid,
 }
 
-
+-- ══════════════════════════════════════════════════════════════
+-- GITHUB RAW BASE URL
+-- Change this to your own repo's raw URL if you fork.
+-- All module files must be in the same folder as this URL.
+-- ══════════════════════════════════════════════════════════════
 local REPO = "https://raw.githubusercontent.com/Pistgoat/PISTA-V10/main/"
 
-
+-- MODULE LOADER HELPER
+-- Fetches each module from GitHub and executes it.
+-- Uses pcall on HttpGet so a single failed module doesn't
+-- crash the whole script — it just warns and continues.
+-- ══════════════════════════════════════════════════════════════
 local function execModule(name)
     local source, err
     local ok = pcall(function()
@@ -101,35 +136,42 @@ local function execModule(name)
     end
 end
 
-
+-- ══════════════════════════════════════════════════════════════
+-- LOAD ALL 9 MODULES  (strict dependency order)
+-- Fetched from GitHub at runtime — no files needed locally.
+-- ══════════════════════════════════════════════════════════════
+-- 1. Profile first — provides ctx.P, ctx.ka/kb/aim/esp/fpsState,
+--    ctx.saveProfile, ctx.collectAndSave
 execModule("Module7_Profile.lua")
 
-
+-- 2. GUI — provides ctx.Window, ctx.PURPLE_* colors
 execModule("Module1_GUI.lua")
 
-
+-- 3. Kill Aura — provides ctx.entitylib, ctx.bedwars*
 execModule("Module2_KillAura.lua")
 
-
+-- 4. KB Reducer — provides ctx.CombatTab
 execModule("Module3_KBReducer.lua")
 
-
+-- 5. Aim Assist — appends to ctx.CombatTab, provides ctx.doAimAssist
 execModule("Module4_AimAssist.lua")
 
-
+-- 6. FPS Boost — provides ctx.diagBlock, ctx.createESPFor/removeESPFor,
+--    ctx.updateESP, ctx.refreshESP, ctx.pingData, ctx.updatePing,
+--    ctx.fpsSamples, ctx.diagTimer
 execModule("Module5_FPSBoost.lua")
 
-
+-- 7. Credits + Changelog
 execModule("Module6_Credits.lua")
 
-
+-- 8. Kit ESP — adds section to ESPTab (needs ctx.ESPTab from Module5)
 execModule("Module8_KitESP.lua")
 
-
+-- 9. Animations tab — needs ctx.Window from Module1
 execModule("Module9_Animations.lua")
 
 -- ══════════════════════════════════════════════════════════════
--- PLAYER / CHARACTER EVENTS  (NN ASS SHI )
+-- PLAYER / CHARACTER EVENTS  (V4 identical)
 -- ══════════════════════════════════════════════════════════════
 local function onNewChar(player, char)
     task.wait(0.5)
@@ -176,31 +218,42 @@ LocalPlayer.CharacterAdded:Connect(function()
     ctx.aim.target      = nil
 end)
 
-
+-- ══════════════════════════════════════════════════════════════
+-- START ENTITY LIB  (Vape entitylib — used by swingSwordAtMouse
+-- target loop. Must start after all connections are set up.)
+-- ══════════════════════════════════════════════════════════════
 ctx.entitylib.start()
 
 -- ══════════════════════════════════════════════════════════════
--- KEYBINDS  (no skid)
+-- KEYBINDS  (V4 identical)
 -- ══════════════════════════════════════════════════════════════
+-- Notify helper — tries multiple field name formats because different
+-- versions of the UI library use Desc / Content / Description / Text
+local function notify(title, body, duration)
+    pcall(function()
+        ctx.Window:Notify({
+            Title       = title,
+            Desc        = body,
+            Content     = body,
+            Description = body,
+            Text        = body,
+            Time        = duration or 2,
+            Duration    = duration or 2,
+        })
+    end)
+end
+
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.Q then
         ctx.ka.enabled = not ctx.ka.enabled
         ctx.collectAndSave()
-        ctx.Window:Notify({
-            Title = "Kill Aura",
-            Desc  = ctx.ka.enabled and "Kill Aura  ON  (Vape Engine)" or "Kill Aura  OFF",
-            Time  = 2,
-        })
+        notify("Kill Aura", ctx.ka.enabled and "Kill Aura  ON  (Vape Engine)" or "Kill Aura  OFF", 2)
     elseif input.KeyCode == Enum.KeyCode.R then
         ctx.aim.enabled = not ctx.aim.enabled
         if not ctx.aim.enabled then ctx.aim.target = nil end
         ctx.collectAndSave()
-        ctx.Window:Notify({
-            Title = "Aim Assist",
-            Desc  = ctx.aim.enabled and "Aim Assist  ON" or "Aim Assist  OFF",
-            Time  = 2,
-        })
+        notify("Aim Assist", ctx.aim.enabled and "Aim Assist  ON" or "Aim Assist  OFF", 2)
     end
 end)
 
@@ -268,5 +321,5 @@ end)
 -- ══════════════════════════════════════════════════════════════
 -- FINAL NOTIFICATIONS
 -- ══════════════════════════════════════════════════════════════
-ctx.Window:Notify({ Title = "WOLFVXPE REWRITE", Desc = "Loaded — Vape KA Engine | Q=KA  R=Aim  RightShift=Menu", Time = 5 })
+notify("WOLFVXPE REWRITE", "Loaded — Vape KA Engine | Q=KA  R=Aim  RightShift=Menu", 5)
 print("[ WOLFVXPE REWRITE ] Loaded — pistademon | Vape KA Engine | Q=KA  R=Aim  RightShift=Menu")
