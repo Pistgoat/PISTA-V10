@@ -134,35 +134,36 @@ end
 
 -- ══════════════════════════════════════════════════════════════
 -- LOAD ALL 9 MODULES  (strict dependency order)
+-- Profile + GUI load first (no progress bar yet).
+-- After GUI loads, ctx.setLoadStatus exists and the splash is
+-- animating — remaining modules load while the animation plays.
 -- ══════════════════════════════════════════════════════════════
--- 1. Profile first — provides ctx.ka/kb/aim/esp/fpsState/collectAndSave
+
+-- 1. Profile — provides ctx.ka/kb/aim/esp/fpsState/collectAndSave
 execModule("Module7_Profile.lua")
 
--- 2. GUI — provides ctx.GUI, ctx.Window (Ash-Libs wrapper), colors
+-- 2. GUI — starts splash animation, exposes ctx.setLoadStatus
 execModule("Module1_GUI.lua")
 
--- 3. Kill Aura — provides ctx.entitylib, ctx.bedwars
-execModule("Module2_KillAura.lua")
+-- 3-9. Remaining modules — each calls setLoadStatus so the
+--      splash progress bar updates in real time.
+local MODULES = {
+    { "Module2_KillAura.lua",   "Kill Aura Engine" },
+    { "Module3_KBReducer.lua",  "KB Reducer"       },
+    { "Module4_AimAssist.lua",  "Aim Assist"       },
+    { "Module5_FPSBoost.lua",   "ESP & FPS Boost"  },
+    { "Module6_Credits.lua",    "Credits"          },
+    { "Module8_KitESP.lua",     "Kit ESP"          },
+    { "Module9_Animations.lua", "Animations"       },
+}
 
--- 4. KB Reducer — creates CombatTab, provides ctx.CombatTab
-execModule("Module3_KBReducer.lua")
+for i, m in ipairs(MODULES) do
+    execModule(m[1])
+    pcall(function() ctx.setLoadStatus(m[2], i, #MODULES) end)
+end
 
--- 5. Aim Assist — appends to CombatTab, provides ctx.doAimAssist
-execModule("Module4_AimAssist.lua")
-
--- 6. FPS + ESP — provides ctx.ESPTab, ctx.diagBlock, ctx.updateESP,
---    ctx.refreshESP, ctx.createESPFor, ctx.removeESPFor,
---    ctx.pingData, ctx.updatePing, ctx.fpsSamples, ctx.diagTimer
-execModule("Module5_FPSBoost.lua")
-
--- 7. Credits + Changelog
-execModule("Module6_Credits.lua")
-
--- 8. Kit ESP — appends to ctx.ESPTab (needs Module5)
-execModule("Module8_KitESP.lua")
-
--- 9. Animations tab
-execModule("Module9_Animations.lua")
+-- Signal splash that everything is loaded → triggers exit animation
+pcall(function() ctx.setLoadComplete() end)
 
 -- ══════════════════════════════════════════════════════════════
 -- NOTIFY HELPER  —  routes to custom system in Module1_GUI
