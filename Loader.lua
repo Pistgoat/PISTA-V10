@@ -1,28 +1,4 @@
---[[
-    ██╗    ██╗ ██████╗ ██╗     ███████╗    ██╗   ██╗██╗  ██╗██████╗ ███████╗
-    ██║    ██║██╔═══██╗██║     ██╔════╝    ██║   ██║╚██╗██╔╝██╔══██╗██╔════╝
-    ██║ █╗ ██║██║   ██║██║     █████╗      ██║   ██║ ╚███╔╝ ██████╔╝█████╗
-    ██║███╗██║██║   ██║██║     ██╔══╝      ╚██╗ ██╔╝ ██╔██╗ ██╔═══╝ ██╔══╝
-    ╚███╔███╔╝╚██████╔╝███████╗██║          ╚████╔╝ ██╔╝ ██╗██║     ███████╗
-     ╚══╝╚══╝  ╚═════╝ ╚══════╝╚═╝           ╚═══╝  ╚═╝  ╚═╝╚═╝     ╚══════╝
 
-    WOLFVXPE  (REWRITE)
-    Originally by pistademon | Rewritten & Enhanced Edition
-    Vape Kill Aura Engine  •  KB Reducer  •  Aim Assist  •  ESP  •  FPS
-
-    MODULAR LOADER — loads 7 modules in dependency order:
-      Module1_GUI.lua        → Splash, Colors, Library, Window, Toast
-      Module2_KillAura.lua   → Vape EntityLib, Bedwars, KA Engine, KATab
-      Module3_KBReducer.lua  → CombatTab creation, KB Reducer section
-      Module4_AimAssist.lua  → Aim Assist logic + AA section on CombatTab
-      Module5_FPSBoost.lua   → ESP logic/tab, FPS tab, Ping stabilizer
-      Module6_Credits.lua    → Credits tab, Changelog tab
-      Module7_Profile.lua    → Profile save/load, state tables, auto-save
-]]
-
--- ══════════════════════════════════════════════════════════════
--- SERVICES  (cached once at top — fastest possible lookup)
--- ══════════════════════════════════════════════════════════════
 local Players          = game:GetService("Players")
 local RunService       = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -37,10 +13,10 @@ local PlayerGui   = LocalPlayer:WaitForChild("PlayerGui")
 local Mouse       = LocalPlayer:GetMouse()
 local Camera      = workspace.CurrentCamera
 
--- Fast local refs to built-ins (micro-optimise hot paths)
+
 local tinsert, tremove, tclone = table.insert, table.remove, table.clone
 local mfloor, mcos, mrad, mabs = math.floor, math.cos, math.rad, math.abs
-local v3new, cf3new = Vector3.new, CFrame.new
+local v3new, cf3new            = Vector3.new, CFrame.new
 
 -- ── cloneref safety wrapper ───────────────────────────────────
 local cloneref = cloneref or function(obj) return obj end
@@ -55,69 +31,55 @@ if ok and VirtualUser then
     end)
 end
 
--- ══════════════════════════════════════════════════════════════
--- CHARACTER HELPERS
--- ══════════════════════════════════════════════════════════════
+
 local function getChar()     return LocalPlayer.Character end
 local function getRoot()     local c=getChar(); return c and c:FindFirstChild("HumanoidRootPart") end
 local function getHumanoid() local c=getChar(); return c and c:FindFirstChild("Humanoid") end
 
--- ══════════════════════════════════════════════════════════════
--- SHARED CONTEXT TABLE
--- Every module receives this table and populates it with its
--- own exports so downstream modules can reference them.
--- ══════════════════════════════════════════════════════════════
+
 local ctx = {
     -- Services
-    Players          = Players,
-    RunService       = RunService,
-    UserInputService = UserInputService,
-    TweenService     = TweenService,
-    ReplicatedStorage= ReplicatedStorage,
-    Lighting         = Lighting,
-    Stats            = Stats,
-    CoreGui          = CoreGui,
+    Players           = Players,
+    RunService        = RunService,
+    UserInputService  = UserInputService,
+    TweenService      = TweenService,
+    ReplicatedStorage = ReplicatedStorage,
+    Lighting          = Lighting,
+    Stats             = Stats,
+    CoreGui           = CoreGui,
     -- Player refs
     LocalPlayer = LocalPlayer,
     PlayerGui   = PlayerGui,
     Mouse       = Mouse,
     Camera      = Camera,
     -- Fast refs
-    tinsert = tinsert,
-    tremove = tremove,
-    tclone  = tclone,
-    mfloor  = mfloor,
-    mcos    = mcos,
-    mrad    = mrad,
-    mabs    = mabs,
-    v3new   = v3new,
-    cf3new  = cf3new,
-    cloneref= cloneref,
+    tinsert  = tinsert,
+    tremove  = tremove,
+    tclone   = tclone,
+    mfloor   = mfloor,
+    mcos     = mcos,
+    mrad     = mrad,
+    mabs     = mabs,
+    v3new    = v3new,
+    cf3new   = cf3new,
+    cloneref = cloneref,
     -- Character helpers
-    getChar    = getChar,
-    getRoot    = getRoot,
-    getHumanoid= getHumanoid,
+    getChar     = getChar,
+    getRoot     = getRoot,
+    getHumanoid = getHumanoid,
 }
 
--- ══════════════════════════════════════════════════════════════
--- GITHUB RAW BASE URL
--- Change this to your own repo's raw URL if you fork.
--- All module files must be in the same folder as this URL.
--- ══════════════════════════════════════════════════════════════
+
 local REPO = "https://raw.githubusercontent.com/Pistgoat/PISTA-V10/main/"
 
--- MODULE LOADER HELPER
--- Fetches each module from GitHub and executes it.
--- Uses pcall on HttpGet so a single failed module doesn't
--- crash the whole script — it just warns and continues.
--- ══════════════════════════════════════════════════════════════
+
 local function execModule(name)
-    local source, err
-    local ok = pcall(function()
+    local source
+    local ok1 = pcall(function()
         source = game:HttpGet(REPO .. name, true)
     end)
-    if not ok or not source or source == "" then
-        warn("[WolfVXPE Loader] Failed to fetch " .. name .. ": " .. tostring(err or "empty response"))
+    if not ok1 or not source or source == "" then
+        warn("[WolfVXPE Loader] Failed to fetch " .. name)
         return
     end
     local fn, compErr = loadstring(source)
@@ -138,40 +100,50 @@ end
 
 -- ══════════════════════════════════════════════════════════════
 -- LOAD ALL 9 MODULES  (strict dependency order)
--- Fetched from GitHub at runtime — no files needed locally.
 -- ══════════════════════════════════════════════════════════════
--- 1. Profile first — provides ctx.P, ctx.ka/kb/aim/esp/fpsState,
---    ctx.saveProfile, ctx.collectAndSave
+-- 1. Profile first — provides ctx.ka/kb/aim/esp/fpsState/collectAndSave
 execModule("Module7_Profile.lua")
 
--- 2. GUI — provides ctx.Window, ctx.PURPLE_* colors
+-- 2. GUI — provides ctx.GUI, ctx.Window (Ash-Libs wrapper), colors
 execModule("Module1_GUI.lua")
 
--- 3. Kill Aura — provides ctx.entitylib, ctx.bedwars*
+-- 3. Kill Aura — provides ctx.entitylib, ctx.bedwars
 execModule("Module2_KillAura.lua")
 
--- 4. KB Reducer — provides ctx.CombatTab
+-- 4. KB Reducer — creates CombatTab, provides ctx.CombatTab
 execModule("Module3_KBReducer.lua")
 
--- 5. Aim Assist — appends to ctx.CombatTab, provides ctx.doAimAssist
+-- 5. Aim Assist — appends to CombatTab, provides ctx.doAimAssist
 execModule("Module4_AimAssist.lua")
 
--- 6. FPS Boost — provides ctx.diagBlock, ctx.createESPFor/removeESPFor,
---    ctx.updateESP, ctx.refreshESP, ctx.pingData, ctx.updatePing,
---    ctx.fpsSamples, ctx.diagTimer
+-- 6. FPS + ESP — provides ctx.ESPTab, ctx.diagBlock, ctx.updateESP,
+--    ctx.refreshESP, ctx.createESPFor, ctx.removeESPFor,
+--    ctx.pingData, ctx.updatePing, ctx.fpsSamples, ctx.diagTimer
 execModule("Module5_FPSBoost.lua")
 
 -- 7. Credits + Changelog
 execModule("Module6_Credits.lua")
 
--- 8. Kit ESP — adds section to ESPTab (needs ctx.ESPTab from Module5)
+-- 8. Kit ESP — appends to ctx.ESPTab (needs Module5)
 execModule("Module8_KitESP.lua")
 
--- 9. Animations tab — needs ctx.Window from Module1
+-- 9. Animations tab
 execModule("Module9_Animations.lua")
 
 -- ══════════════════════════════════════════════════════════════
--- PLAYER / CHARACTER EVENTS  (V4 identical)
+-- NOTIFY HELPER  —  Ash-Libs: GUI:CreateNotify
+-- ══════════════════════════════════════════════════════════════
+local function notify(title, body, _duration)
+    pcall(function()
+        ctx.GUI:CreateNotify({
+            title       = title,
+            description = body,
+        })
+    end)
+end
+
+-- ══════════════════════════════════════════════════════════════
+-- PLAYER / CHARACTER EVENTS
 -- ══════════════════════════════════════════════════════════════
 local function onNewChar(player, char)
     task.wait(0.5)
@@ -219,41 +191,26 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 -- ══════════════════════════════════════════════════════════════
--- START ENTITY LIB  (Vape entitylib — used by swingSwordAtMouse
--- target loop. Must start after all connections are set up.)
+-- START ENTITY LIB  (Vape — after all connections set up)
 -- ══════════════════════════════════════════════════════════════
 ctx.entitylib.start()
 
 -- ══════════════════════════════════════════════════════════════
--- KEYBINDS  (V4 identical)
+-- KEYBINDS  —  Q = Kill Aura  •  R = Aim Assist
 -- ══════════════════════════════════════════════════════════════
--- Notify helper — tries multiple field name formats because different
--- versions of the UI library use Desc / Content / Description / Text
-local function notify(title, body, duration)
-    pcall(function()
-        ctx.Window:Notify({
-            Title       = title,
-            Desc        = body,
-            Content     = body,
-            Description = body,
-            Text        = body,
-            Time        = duration or 2,
-            Duration    = duration or 2,
-        })
-    end)
-end
-
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.Q then
         ctx.ka.enabled = not ctx.ka.enabled
         ctx.collectAndSave()
-        notify("Kill Aura", ctx.ka.enabled and "Kill Aura  ON  (Vape Engine)" or "Kill Aura  OFF", 2)
+        notify("Kill Aura",
+            ctx.ka.enabled and "Kill Aura  ON  (Vape Engine)" or "Kill Aura  OFF")
     elseif input.KeyCode == Enum.KeyCode.R then
         ctx.aim.enabled = not ctx.aim.enabled
         if not ctx.aim.enabled then ctx.aim.target = nil end
         ctx.collectAndSave()
-        notify("Aim Assist", ctx.aim.enabled and "Aim Assist  ON" or "Aim Assist  OFF", 2)
+        notify("Aim Assist",
+            ctx.aim.enabled and "Aim Assist  ON" or "Aim Assist  OFF")
     end
 end)
 
@@ -268,22 +225,23 @@ RunService.RenderStepped:Connect(function(dt)
     ctx.fpsSamples[#ctx.fpsSamples + 1] = dt > 0 and 1 / dt or 60
     if #ctx.fpsSamples > 30 then tremove(ctx.fpsSamples, 1) end
 
-    ctx.diagTimer += dt
+    ctx.diagTimer = ctx.diagTimer + dt
     if ctx.diagTimer >= 1 then
         ctx.diagTimer = 0
 
         local sum = 0
-        for _, v in ipairs(ctx.fpsSamples) do sum += v end
+        for _, v in ipairs(ctx.fpsSamples) do sum = sum + v end
         local avgFps = mfloor(sum / #ctx.fpsSamples)
 
         ctx.updatePing()
         local pm  = mfloor(ctx.pingData.smooth)
         local pc  = pm < 50 and "LOW" or pm < 100 and "MID" or "HIGH"
         local ft  = avgFps >= 60 and "GREAT" or avgFps >= 30 and "OK" or "LOW"
-        local kaS = ctx.ka.enabled  and "ON (" .. (ctx._getBedwarsReady() and "Vape" or "FS") .. ")" or "OFF"
+        local kaS = ctx.ka.enabled
+                    and "ON (" .. (ctx._getBedwarsReady() and "Vape" or "FS") .. ")"
+                    or  "OFF"
         local aaS = ctx.aim.enabled and "ON" or "OFF"
 
-        -- BUGFIX: wrapped in pcall — SetCode may not exist on all library versions
         pcall(function()
             ctx.diagBlock:SetCode(string.format(
                 "FPS        : %d  [%s]\nPING       : %dms  [%s]\nKill Aura  : %s  |  Aim: %s",
@@ -298,11 +256,10 @@ RunService.Heartbeat:Connect(function(dt)
     local root = getRoot()
     local hum  = getHumanoid()
     if root and hum and hum.Health > 0 and ctx.kb.enabled and ctx.kb.strength > 0 then
-        -- BUGFIX: use AssemblyLinearVelocity (Velocity is deprecated)
-        local cur = root.AssemblyLinearVelocity
+        local cur   = root.AssemblyLinearVelocity
         local delta = (cur - ctx.kb.lastVelocity).Magnitude
         if delta > 10 then
-            local m = 1 - ctx.kb.strength
+            local m       = 1 - ctx.kb.strength
             local reduced = v3new(cur.X * m, cur.Y, cur.Z * m)
             pcall(function() root.AssemblyLinearVelocity = reduced end)
             ctx.kb.lastVelocity = reduced
@@ -311,7 +268,7 @@ RunService.Heartbeat:Connect(function(dt)
         end
     end
 
-    gcTimer += dt
+    gcTimer = gcTimer + dt
     if gcTimer >= 60 then
         gcTimer = 0
         collectgarbage()
@@ -319,7 +276,7 @@ RunService.Heartbeat:Connect(function(dt)
 end)
 
 -- ══════════════════════════════════════════════════════════════
--- FINAL NOTIFICATIONS
+-- FINAL NOTIFICATION
 -- ══════════════════════════════════════════════════════════════
-notify("WOLFVXPE REWRITE", "Loaded — Vape KA Engine | Q=KA  R=Aim  RightShift=Menu", 5)
+notify("WOLFVXPE REWRITE", "Loaded — Vape KA Engine | Q=KA  R=Aim  RightShift=Menu")
 print("[ WOLFVXPE REWRITE ] Loaded — pistademon | Vape KA Engine | Q=KA  R=Aim  RightShift=Menu")
