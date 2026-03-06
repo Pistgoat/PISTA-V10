@@ -1,4 +1,30 @@
+--[[
+    ██╗    ██╗ ██████╗ ██╗     ███████╗    ██╗   ██╗██╗  ██╗██████╗ ███████╗
+    ██║    ██║██╔═══██╗██║     ██╔════╝    ██║   ██║╚██╗██╔╝██╔══██╗██╔════╝
+    ██║ █╗ ██║██║   ██║██║     █████╗      ██║   ██║ ╚███╔╝ ██████╔╝█████╗
+    ██║███╗██║██║   ██║██║     ██╔══╝      ╚██╗ ██╔╝ ██╔██╗ ██╔═══╝ ██╔══╝
+    ╚███╔███╔╝╚██████╔╝███████╗██║          ╚████╔╝ ██╔╝ ██╗██║     ███████╗
+     ╚══╝╚══╝  ╚═════╝ ╚══════╝╚═╝           ╚═══╝  ╚═╝  ╚═╝╚═╝     ╚══════╝
 
+    WOLFVXPE  (REWRITE)  —  Ash-Libs Edition
+    Originally by pistademon | Rewritten & Enhanced Edition
+    Vape Kill Aura Engine  •  KB Reducer  •  Aim Assist  •  ESP  •  FPS
+
+    MODULAR LOADER — loads 9 modules in dependency order:
+      Module7_Profile.lua     → Profile save/load, state tables, auto-save
+      Module1_GUI.lua         → Splash, Colors, Ash-Libs window, Toast
+      Module2_KillAura.lua    → Vape EntityLib, Bedwars, KA Engine, KATab
+      Module3_KBReducer.lua   → CombatTab creation, KB Reducer section
+      Module4_AimAssist.lua   → Aim Assist logic + AA section on CombatTab
+      Module5_FPSBoost.lua    → ESP logic/tab, FPS tab, Ping stabilizer
+      Module6_Credits.lua     → Credits tab, Changelog tab
+      Module8_KitESP.lua      → Kit ESP section appended to ESPTab
+      Module9_Animations.lua  → Animations tab
+]]
+
+-- ══════════════════════════════════════════════════════════════
+-- SERVICES  (cached once — fastest possible lookup)
+-- ══════════════════════════════════════════════════════════════
 local Players          = game:GetService("Players")
 local RunService       = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -13,7 +39,7 @@ local PlayerGui   = LocalPlayer:WaitForChild("PlayerGui")
 local Mouse       = LocalPlayer:GetMouse()
 local Camera      = workspace.CurrentCamera
 
-
+-- Fast local refs to built-ins (micro-optimise hot paths)
 local tinsert, tremove, tclone = table.insert, table.remove, table.clone
 local mfloor, mcos, mrad, mabs = math.floor, math.cos, math.rad, math.abs
 local v3new, cf3new            = Vector3.new, CFrame.new
@@ -31,12 +57,16 @@ if ok and VirtualUser then
     end)
 end
 
-
+-- ══════════════════════════════════════════════════════════════
+-- CHARACTER HELPERS
+-- ══════════════════════════════════════════════════════════════
 local function getChar()     return LocalPlayer.Character end
 local function getRoot()     local c=getChar(); return c and c:FindFirstChild("HumanoidRootPart") end
 local function getHumanoid() local c=getChar(); return c and c:FindFirstChild("Humanoid") end
 
-
+-- ══════════════════════════════════════════════════════════════
+-- SHARED CONTEXT TABLE
+-- ══════════════════════════════════════════════════════════════
 local ctx = {
     -- Services
     Players           = Players,
@@ -69,10 +99,14 @@ local ctx = {
     getHumanoid = getHumanoid,
 }
 
-
+-- ══════════════════════════════════════════════════════════════
+-- GITHUB RAW BASE URL
+-- ══════════════════════════════════════════════════════════════
 local REPO = "https://raw.githubusercontent.com/Pistgoat/PISTA-V10/main/"
 
-
+-- ══════════════════════════════════════════════════════════════
+-- MODULE LOADER HELPER
+-- ══════════════════════════════════════════════════════════════
 local function execModule(name)
     local source
     local ok1 = pcall(function()
@@ -131,15 +165,10 @@ execModule("Module8_KitESP.lua")
 execModule("Module9_Animations.lua")
 
 -- ══════════════════════════════════════════════════════════════
--- NOTIFY HELPER  —  Ash-Libs: GUI:CreateNotify
+-- NOTIFY HELPER  —  routes to custom system in Module1_GUI
 -- ══════════════════════════════════════════════════════════════
-local function notify(title, body, _duration)
-    pcall(function()
-        ctx.GUI:CreateNotify({
-            title       = title,
-            description = body,
-        })
-    end)
+local function notify(title, body)
+    pcall(function() ctx.notify(title, body) end)
 end
 
 -- ══════════════════════════════════════════════════════════════
