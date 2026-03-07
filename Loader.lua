@@ -167,10 +167,95 @@ execModule("Module9_Animations.lua")
 -- ══════════════════════════════════════════════════════════════
 -- NOTIFY HELPER  —  Ash-Libs: GUI:CreateNotify
 -- ══════════════════════════════════════════════════════════════
--- notify: custom system built in Module1_GUI (CoreGui, no lib dependency)
-local function notify(title, body, duration)
-    pcall(function() ctx.notify(title, body or "", duration or 2.5) end)
+-- ══════════════════════════════════════════════════════════════
+-- STANDALONE NOTIFICATION SYSTEM
+-- Lives entirely in the Loader — zero module dependency.
+-- Works from the first line. Never fails silently.
+-- ══════════════════════════════════════════════════════════════
+local _notifGui = Instance.new("ScreenGui")
+_notifGui.Name           = "WolfVXPE_Notifs"
+_notifGui.ResetOnSpawn   = false
+_notifGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+_notifGui.DisplayOrder   = 10000
+_notifGui.Parent         = CoreGui
+
+local _notifQueue   = {}
+local _notifBusy    = false
+
+local _NP  = Color3.fromRGB(138, 43,  226)
+local _ND  = Color3.fromRGB(60,  10,  100)
+local _NG  = Color3.fromRGB(220, 180, 255)
+local _NDm = Color3.fromRGB(180, 100, 255)
+local _NB  = Color3.fromRGB(8,   4,   14)
+local _NBM = Color3.fromRGB(16,  8,   28)
+
+local function _showNotif(title, body, duration)
+    duration = duration or 2.5
+    local card = Instance.new("Frame", _notifGui)
+    card.Size             = UDim2.new(0, 320, 0, 60)
+    card.AnchorPoint      = Vector2.new(1, 1)
+    card.Position         = UDim2.new(1, -14, 1, 80)
+    card.BackgroundColor3 = _NB
+    card.BorderSizePixel  = 0
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 9)
+    local sk = Instance.new("UIStroke", card)
+    sk.Color = _NP; sk.Thickness = 1.2; sk.Transparency = 0.15
+    local bg = Instance.new("UIGradient", card)
+    bg.Color    = ColorSequence.new({ ColorSequenceKeypoint.new(0,_NB), ColorSequenceKeypoint.new(1,_NBM) })
+    bg.Rotation = 90
+    local accent = Instance.new("Frame", card)
+    accent.Size = UDim2.new(0,3,1,-12); accent.Position = UDim2.new(0,6,0,6)
+    accent.BackgroundColor3 = _NP; accent.BorderSizePixel = 0
+    Instance.new("UICorner", accent).CornerRadius = UDim.new(1,0)
+    local tl = Instance.new("TextLabel", card)
+    tl.Size = UDim2.new(1,-20,0,20); tl.Position = UDim2.new(0,15,0,7)
+    tl.BackgroundTransparency = 1; tl.Text = title
+    tl.TextColor3 = _NG; tl.Font = Enum.Font.GothamBold
+    tl.TextSize = 13; tl.TextXAlignment = Enum.TextXAlignment.Left
+    tl.TextTransparency = 0
+    local bl = Instance.new("TextLabel", card)
+    bl.Size = UDim2.new(1,-20,0,13); bl.Position = UDim2.new(0,15,0,31)
+    bl.BackgroundTransparency = 1; bl.Text = body
+    bl.TextColor3 = _NDm; bl.Font = Enum.Font.Gotham
+    bl.TextSize = 11; bl.TextXAlignment = Enum.TextXAlignment.Left
+    bl.TextTransparency = 0
+    local prog = Instance.new("Frame", card)
+    prog.Size = UDim2.new(1,0,0,2); prog.Position = UDim2.new(0,0,1,-2)
+    prog.BackgroundColor3 = _NP; prog.BorderSizePixel = 0
+    TweenService:Create(card,
+        TweenInfo.new(0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
+        { Position = UDim2.new(1,-14,1,-14) }):Play()
+    TweenService:Create(prog,
+        TweenInfo.new(duration, Enum.EasingStyle.Linear),
+        { Size = UDim2.new(0,0,0,2) }):Play()
+    task.wait(duration)
+    local fo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+    TweenService:Create(card, fo, { Position = UDim2.new(1,-14,1,80), BackgroundTransparency=1 }):Play()
+    TweenService:Create(tl,   fo, { TextTransparency = 1 }):Play()
+    TweenService:Create(bl,   fo, { TextTransparency = 1 }):Play()
+    task.wait(0.27)
+    pcall(function() card:Destroy() end)
 end
+
+local function _runQueue()
+    if _notifBusy then return end
+    _notifBusy = true
+    task.spawn(function()
+        while #_notifQueue > 0 do
+            local item = table.remove(_notifQueue, 1)
+            _showNotif(item.t, item.b, item.d)
+            task.wait(0.08)
+        end
+        _notifBusy = false
+    end)
+end
+
+local function notify(title, body, duration)
+    table.insert(_notifQueue, { t = title or "", b = body or "", d = duration or 2.5 })
+    _runQueue()
+end
+-- Also push onto ctx so modules can call ctx.notify(...)
+ctx.notify = notify
 
 -- ══════════════════════════════════════════════════════════════
 -- PLAYER / CHARACTER EVENTS
@@ -237,7 +322,10 @@ UserInputService.InputBegan:Connect(function(input, gp)
             ctx.ka.enabled and "Kill Aura  ON  (Vape Engine)" or "Kill Aura  OFF")
     elseif input.KeyCode == Enum.KeyCode.R then
         ctx.aim.enabled = not ctx.aim.enabled
-        if not ctx.aim.enabled then ctx.aim.target = nil end
+        if not ctx.aim.enabled then
+            ctx.aim.target = nil
+            pcall(function() ctx.onAimToggle() end)
+        end
         ctx.collectAndSave()
         notify("Aim Assist",
             ctx.aim.enabled and "Aim Assist  ON" or "Aim Assist  OFF")
