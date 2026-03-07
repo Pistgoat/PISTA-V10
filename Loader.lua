@@ -167,13 +167,9 @@ execModule("Module9_Animations.lua")
 -- ══════════════════════════════════════════════════════════════
 -- NOTIFY HELPER  —  Ash-Libs: GUI:CreateNotify
 -- ══════════════════════════════════════════════════════════════
-local function notify(title, body, _duration)
-    pcall(function()
-        ctx.GUI:CreateNotify({
-            title       = title,
-            description = body,
-        })
-    end)
+-- notify: custom system built in Module1_GUI (CoreGui, no lib dependency)
+local function notify(title, body, duration)
+    pcall(function() ctx.notify(title, body or "", duration or 2.5) end)
 end
 
 -- ══════════════════════════════════════════════════════════════
@@ -312,5 +308,6 @@ end)
 -- ══════════════════════════════════════════════════════════════
 -- FINAL NOTIFICATION
 -- ══════════════════════════════════════════════════════════════
-notify("WOLFVXPE REWRITE", "Loaded — Vape KA Engine | Q=KA  R=Aim  RightShift=Menu")
+task.wait(0.5)  -- let GUI settle first
+notify("WOLFVXPE REWRITE", "Loaded  |  Q = Kill Aura  •  R = Aim  •  RShift = Menu", 4)
 print("[ WOLFVXPE REWRITE ] Loaded — pistademon | Vape KA Engine | Q=KA  R=Aim  RightShift=Menu")
