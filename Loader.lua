@@ -165,109 +165,14 @@ execModule("Module8_KitESP.lua")
 execModule("Module9_Animations.lua")
 
 -- ══════════════════════════════════════════════════════════════
--- CUSTOM NOTIFICATION SYSTEM  —  zero dependency on any UI lib
--- Queued slide-in toasts built entirely with TweenService + CoreGui.
--- Works from the moment the Loader runs — no GUI lib needed.
+-- NOTIFY HELPER  —  Ash-Libs: GUI:CreateNotify
 -- ══════════════════════════════════════════════════════════════
-local _nQueue = {}
-local _nBusy  = false
-
-local N_BG     = Color3.fromRGB(4,   12,  8)
-local N_BG_MID = Color3.fromRGB(8,   24,  14)
-local N_GREEN  = Color3.fromRGB(34,  197, 94)
-local N_GLOW   = Color3.fromRGB(187, 247, 208)
-local N_DIM    = Color3.fromRGB(74,  222, 128)
-local N_DEEP   = Color3.fromRGB(20,  83,  45)
-
-local function notify(title, body)
-    table.insert(_nQueue, { title = tostring(title or ""), body = tostring(body or "") })
-    if _nBusy then return end
-    _nBusy = true
-    task.spawn(function()
-        while #_nQueue > 0 do
-            local n = table.remove(_nQueue, 1)
-
-            local nGui = Instance.new("ScreenGui")
-            nGui.Name           = "WolfVXPE_Notify"
-            nGui.ResetOnSpawn   = false
-            nGui.DisplayOrder   = 9997
-            nGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-            nGui.Parent         = CoreGui
-
-            local frame = Instance.new("Frame", nGui)
-            frame.Size                   = UDim2.new(0, 300, 0, 58)
-            frame.AnchorPoint            = Vector2.new(1, 0)
-            frame.Position               = UDim2.new(1, 320, 0, 16)
-            frame.BackgroundColor3       = N_BG
-            frame.BackgroundTransparency = 0.05
-            frame.BorderSizePixel        = 0
-            Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
-
-            local stroke = Instance.new("UIStroke", frame)
-            stroke.Color = N_GREEN; stroke.Thickness = 1.2; stroke.Transparency = 0.2
-
-            local grad = Instance.new("UIGradient", frame)
-            grad.Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, N_BG),
-                ColorSequenceKeypoint.new(1, N_BG_MID),
-            })
-            grad.Rotation = 90
-
-            local accent = Instance.new("Frame", frame)
-            accent.Size             = UDim2.new(0, 3, 1, -14)
-            accent.Position         = UDim2.new(0, 7, 0, 7)
-            accent.BackgroundColor3 = N_GREEN
-            accent.BorderSizePixel  = 0
-            Instance.new("UICorner", accent).CornerRadius = UDim.new(1, 0)
-            local aGrad = Instance.new("UIGradient", accent)
-            aGrad.Color = ColorSequence.new({
-                ColorSequenceKeypoint.new(0, N_GREEN),
-                ColorSequenceKeypoint.new(1, N_DEEP),
-            })
-            aGrad.Rotation = 90
-
-            local tTitle = Instance.new("TextLabel", frame)
-            tTitle.Size                   = UDim2.new(1, -20, 0, 22)
-            tTitle.Position               = UDim2.new(0, 16, 0, 5)
-            tTitle.BackgroundTransparency = 1
-            tTitle.Text                   = n.title
-            tTitle.TextColor3             = N_GLOW
-            tTitle.TextStrokeColor3       = N_DEEP
-            tTitle.TextStrokeTransparency = 0.5
-            tTitle.Font                   = Enum.Font.GothamBold
-            tTitle.TextSize               = 12
-            tTitle.TextXAlignment         = Enum.TextXAlignment.Left
-            tTitle.ZIndex                 = 3
-
-            local tBody = Instance.new("TextLabel", frame)
-            tBody.Size                   = UDim2.new(1, -20, 0, 18)
-            tBody.Position               = UDim2.new(0, 16, 0, 30)
-            tBody.BackgroundTransparency = 1
-            tBody.Text                   = n.body
-            tBody.TextColor3             = N_DIM
-            tBody.Font                   = Enum.Font.Gotham
-            tBody.TextSize               = 10
-            tBody.TextXAlignment         = Enum.TextXAlignment.Left
-            tBody.TextTruncate           = Enum.TextTruncate.AtEnd
-            tBody.ZIndex                 = 3
-
-            -- Slide in from right
-            TweenService:Create(frame,
-                TweenInfo.new(0.3, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-                { Position = UDim2.new(1, -10, 0, 16) }):Play()
-
-            task.wait(3.0)
-
-            -- Slide out to right
-            local fo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-            TweenService:Create(frame,  fo, { Position = UDim2.new(1, 320, 0, 16) }):Play()
-            TweenService:Create(tTitle, fo, { TextTransparency = 1 }):Play()
-            TweenService:Create(tBody,  fo, { TextTransparency = 1 }):Play()
-            task.wait(0.28)
-            pcall(function() nGui:Destroy() end)
-            task.wait(0.08)
-        end
-        _nBusy = false
+local function notify(title, body, _duration)
+    pcall(function()
+        ctx.GUI:CreateNotify({
+            title       = title,
+            description = body,
+        })
     end)
 end
 
