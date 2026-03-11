@@ -150,9 +150,7 @@ execModule("Module3_KBReducer.lua")
 -- 5. Aim Assist — appends to CombatTab, provides ctx.doAimAssist
 execModule("Module4_AimAssist.lua")
 
--- 6. FPS + ESP — provides ctx.ESPTab, ctx.diagBlock, ctx.updateESP,
---    ctx.refreshESP, ctx.createESPFor, ctx.removeESPFor,
---    ctx.pingData, ctx.updatePing, ctx.fpsSamples, ctx.diagTimer
+
 execModule("Module5_FPSBoost.lua")
 
 -- 7. Credits + Changelog
@@ -164,98 +162,160 @@ execModule("Module8_KitESP.lua")
 -- 9. Animations tab
 execModule("Module9_Animations.lua")
 
--- ══════════════════════════════════════════════════════════════
--- NOTIFY HELPER  —  Ash-Libs: GUI:CreateNotify
--- ══════════════════════════════════════════════════════════════
--- ══════════════════════════════════════════════════════════════
--- STANDALONE NOTIFICATION SYSTEM
--- Lives entirely in the Loader — zero module dependency.
--- Works from the first line. Never fails silently.
--- ══════════════════════════════════════════════════════════════
-local _notifGui = Instance.new("ScreenGui")
-_notifGui.Name           = "WolfVXPE_Notifs"
-_notifGui.ResetOnSpawn   = false
-_notifGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-_notifGui.DisplayOrder   = 10000
-_notifGui.Parent         = CoreGui
 
-local _notifQueue   = {}
-local _notifBusy    = false
+local _nGui = Instance.new("ScreenGui")
+_nGui.Name           = "WolfVXPE_Notify"
+_nGui.ResetOnSpawn   = false
+_nGui.DisplayOrder   = 99999
+_nGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+_nGui.Parent         = CoreGui
 
-local _NP  = Color3.fromRGB(138, 43,  226)
-local _ND  = Color3.fromRGB(60,  10,  100)
-local _NG  = Color3.fromRGB(220, 180, 255)
-local _NDm = Color3.fromRGB(180, 100, 255)
-local _NB  = Color3.fromRGB(8,   4,   14)
-local _NBM = Color3.fromRGB(16,  8,   28)
+-- Green palette (matches splash)
+local NC_BG      = Color3.fromRGB(4,   12,  8)
+local NC_BG_MID  = Color3.fromRGB(8,   24,  14)
+local NC_PRIMARY = Color3.fromRGB(34,  197, 94)
+local NC_GLOW    = Color3.fromRGB(187, 247, 208)
+local NC_DIM     = Color3.fromRGB(74,  222, 128)
+local NC_MUTED   = Color3.fromRGB(52,  120, 80)
+local NC_DEEP    = Color3.fromRGB(20,  83,  45)
 
-local function _showNotif(title, body, duration)
-    duration = duration or 2.5
-    local card = Instance.new("Frame", _notifGui)
-    card.Size             = UDim2.new(0, 320, 0, 60)
-    card.AnchorPoint      = Vector2.new(1, 1)
-    card.Position         = UDim2.new(1, -14, 1, 80)
-    card.BackgroundColor3 = _NB
-    card.BorderSizePixel  = 0
-    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 9)
-    local sk = Instance.new("UIStroke", card)
-    sk.Color = _NP; sk.Thickness = 1.2; sk.Transparency = 0.15
-    local bg = Instance.new("UIGradient", card)
-    bg.Color    = ColorSequence.new({ ColorSequenceKeypoint.new(0,_NB), ColorSequenceKeypoint.new(1,_NBM) })
-    bg.Rotation = 90
+local _nQueue   = {}
+local _nBusy    = false
+
+local function _showNextNotify()
+    if _nBusy or #_nQueue == 0 then return end
+    _nBusy = true
+
+    local item     = table.remove(_nQueue, 1)
+    local title    = item.title    or ""
+    local body     = item.body     or ""
+    local duration = item.duration or 3
+
+    -- Card frame
+    local card = Instance.new("Frame", _nGui)
+    card.Name                   = "NotifyCard"
+    card.Size                   = UDim2.new(0, 340, 0, 70)
+    card.AnchorPoint            = Vector2.new(0.5, 1)
+    card.Position               = UDim2.new(0.5, 0, 1, 90)   -- off-screen
+    card.BackgroundColor3       = NC_BG
+    card.BackgroundTransparency = 0.04
+    card.BorderSizePixel        = 0
+    card.ClipsDescendants       = false
+
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 12)
+
+    -- Border stroke
+    local stroke = Instance.new("UIStroke", card)
+    stroke.Color        = NC_PRIMARY
+    stroke.Thickness    = 1.4
+    stroke.Transparency = 0.2
+
+    -- Background gradient
+    local grad = Instance.new("UIGradient", card)
+    grad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, NC_BG),
+        ColorSequenceKeypoint.new(1, NC_BG_MID),
+    })
+    grad.Rotation = 90
+
+    -- Left accent bar
     local accent = Instance.new("Frame", card)
-    accent.Size = UDim2.new(0,3,1,-12); accent.Position = UDim2.new(0,6,0,6)
-    accent.BackgroundColor3 = _NP; accent.BorderSizePixel = 0
-    Instance.new("UICorner", accent).CornerRadius = UDim.new(1,0)
-    local tl = Instance.new("TextLabel", card)
-    tl.Size = UDim2.new(1,-20,0,20); tl.Position = UDim2.new(0,15,0,7)
-    tl.BackgroundTransparency = 1; tl.Text = title
-    tl.TextColor3 = _NG; tl.Font = Enum.Font.GothamBold
-    tl.TextSize = 13; tl.TextXAlignment = Enum.TextXAlignment.Left
-    tl.TextTransparency = 0
-    local bl = Instance.new("TextLabel", card)
-    bl.Size = UDim2.new(1,-20,0,13); bl.Position = UDim2.new(0,15,0,31)
-    bl.BackgroundTransparency = 1; bl.Text = body
-    bl.TextColor3 = _NDm; bl.Font = Enum.Font.Gotham
-    bl.TextSize = 11; bl.TextXAlignment = Enum.TextXAlignment.Left
-    bl.TextTransparency = 0
-    local prog = Instance.new("Frame", card)
-    prog.Size = UDim2.new(1,0,0,2); prog.Position = UDim2.new(0,0,1,-2)
-    prog.BackgroundColor3 = _NP; prog.BorderSizePixel = 0
-    TweenService:Create(card,
-        TweenInfo.new(0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-        { Position = UDim2.new(1,-14,1,-14) }):Play()
-    TweenService:Create(prog,
-        TweenInfo.new(duration, Enum.EasingStyle.Linear),
-        { Size = UDim2.new(0,0,0,2) }):Play()
-    task.wait(duration)
-    local fo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-    TweenService:Create(card, fo, { Position = UDim2.new(1,-14,1,80), BackgroundTransparency=1 }):Play()
-    TweenService:Create(tl,   fo, { TextTransparency = 1 }):Play()
-    TweenService:Create(bl,   fo, { TextTransparency = 1 }):Play()
-    task.wait(0.27)
-    pcall(function() card:Destroy() end)
-end
+    accent.Size             = UDim2.new(0, 3, 1, -16)
+    accent.Position         = UDim2.new(0, 8, 0, 8)
+    accent.BackgroundColor3 = NC_PRIMARY
+    accent.BorderSizePixel  = 0
+    Instance.new("UICorner", accent).CornerRadius = UDim.new(1, 0)
+    local accentGrad = Instance.new("UIGradient", accent)
+    accentGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0, NC_PRIMARY),
+        ColorSequenceKeypoint.new(1, NC_DEEP),
+    })
+    accentGrad.Rotation = 90
 
-local function _runQueue()
-    if _notifBusy then return end
-    _notifBusy = true
+    -- Title label
+    local titleLbl = Instance.new("TextLabel", card)
+    titleLbl.Size                   = UDim2.new(1, -26, 0, 22)
+    titleLbl.Position               = UDim2.new(0, 18, 0, 8)
+    titleLbl.BackgroundTransparency = 1
+    titleLbl.Text                   = title
+    titleLbl.TextColor3             = NC_GLOW
+    titleLbl.TextStrokeColor3       = NC_DEEP
+    titleLbl.TextStrokeTransparency = 0.5
+    titleLbl.Font                   = Enum.Font.GothamBold
+    titleLbl.TextSize               = 13
+    titleLbl.TextXAlignment         = Enum.TextXAlignment.Left
+    titleLbl.ZIndex                 = 3
+
+    -- Body label
+    local bodyLbl = Instance.new("TextLabel", card)
+    bodyLbl.Size                   = UDim2.new(1, -26, 0, 14)
+    bodyLbl.Position               = UDim2.new(0, 18, 0, 31)
+    bodyLbl.BackgroundTransparency = 1
+    bodyLbl.Text                   = body
+    bodyLbl.TextColor3             = NC_DIM
+    bodyLbl.Font                   = Enum.Font.Gotham
+    bodyLbl.TextSize               = 11
+    bodyLbl.TextXAlignment         = Enum.TextXAlignment.Left
+    bodyLbl.ZIndex                 = 3
+
+    -- Progress bar background
+    local barBg = Instance.new("Frame", card)
+    barBg.Size             = UDim2.new(1, -16, 0, 3)
+    barBg.Position         = UDim2.new(0, 8, 1, -7)
+    barBg.BackgroundColor3 = Color3.fromRGB(8, 28, 14)
+    barBg.BorderSizePixel  = 0
+    barBg.ClipsDescendants = true
+    barBg.ZIndex           = 3
+    Instance.new("UICorner", barBg).CornerRadius = UDim.new(1, 0)
+
+    local bar = Instance.new("Frame", barBg)
+    bar.Size             = UDim2.new(1, 0, 1, 0)
+    bar.BackgroundColor3 = NC_PRIMARY
+    bar.BorderSizePixel  = 0
+    bar.ZIndex           = 4
+    Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
+    local barGrad = Instance.new("UIGradient", bar)
+    barGrad.Color = ColorSequence.new({
+        ColorSequenceKeypoint.new(0,    NC_DEEP),
+        ColorSequenceKeypoint.new(0.6,  NC_PRIMARY),
+        ColorSequenceKeypoint.new(1,    NC_GLOW),
+    })
+
     task.spawn(function()
-        while #_notifQueue > 0 do
-            local item = table.remove(_notifQueue, 1)
-            _showNotif(item.t, item.b, item.d)
-            task.wait(0.08)
-        end
-        _notifBusy = false
+        -- SLIDE UP
+        TweenService:Create(card,
+            TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Position = UDim2.new(0.5, 0, 1, -16),
+            }):Play()
+        task.wait(0.45)
+
+        -- PROGRESS BAR depletes over duration
+        TweenService:Create(bar,
+            TweenInfo.new(duration, Enum.EasingStyle.Linear), {
+                Size = UDim2.new(0, 0, 1, 0),
+            }):Play()
+
+        task.wait(duration)
+
+        -- FADE OUT + SLIDE DOWN
+        local fadeInfo = TweenInfo.new(0.35, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+        TweenService:Create(card,     fadeInfo, { Position = UDim2.new(0.5, 0, 1, 90), BackgroundTransparency = 1 }):Play()
+        TweenService:Create(titleLbl, fadeInfo, { TextTransparency = 1 }):Play()
+        TweenService:Create(bodyLbl,  fadeInfo, { TextTransparency = 1 }):Play()
+        TweenService:Create(accent,   fadeInfo, { BackgroundTransparency = 1 }):Play()
+        TweenService:Create(barBg,    fadeInfo, { BackgroundTransparency = 1 }):Play()
+        task.wait(0.38)
+
+        pcall(function() card:Destroy() end)
+        _nBusy = false
+        _showNextNotify()   -- show next queued notification
     end)
 end
 
-local function notify(title, body, duration)
-    table.insert(_notifQueue, { t = title or "", b = body or "", d = duration or 2.5 })
-    _runQueue()
+local function wolfNotify(title, body, duration)
+    table.insert(_nQueue, { title = title, body = body, duration = duration or 3 })
+    _showNextNotify()
 end
--- Also push onto ctx so modules can call ctx.notify(...)
-ctx.notify = notify
 
 -- ══════════════════════════════════════════════════════════════
 -- PLAYER / CHARACTER EVENTS
@@ -310,25 +370,26 @@ end)
 -- ══════════════════════════════════════════════════════════════
 ctx.entitylib.start()
 
--- ══════════════════════════════════════════════════════════════
--- KEYBINDS  —  Q = Kill Aura  •  R = Aim Assist
--- ══════════════════════════════════════════════════════════════
+
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.Q then
         ctx.ka.enabled = not ctx.ka.enabled
         ctx.collectAndSave()
-        notify("Kill Aura",
-            ctx.ka.enabled and "Kill Aura  ON  (Vape Engine)" or "Kill Aura  OFF")
+        if ctx.ka.enabled then
+            wolfNotify("⚔  Kill Aura  ON",  "Vape Engine active — targeting enemies", 2.5)
+        else
+            wolfNotify("✗  Kill Aura  OFF", "Kill Aura disabled", 2.5)
+        end
     elseif input.KeyCode == Enum.KeyCode.R then
         ctx.aim.enabled = not ctx.aim.enabled
-        if not ctx.aim.enabled then
-            ctx.aim.target = nil
-            pcall(function() ctx.onAimToggle() end)
-        end
+        if not ctx.aim.enabled then ctx.aim.target = nil end
         ctx.collectAndSave()
-        notify("Aim Assist",
-            ctx.aim.enabled and "Aim Assist  ON" or "Aim Assist  OFF")
+        if ctx.aim.enabled then
+            wolfNotify("🎯  Aim Assist  ON",  "Locking onto nearest enemy torso", 2.5)
+        else
+            wolfNotify("✗  Aim Assist  OFF", "Aim Assist disabled", 2.5)
+        end
     end
 end)
 
@@ -393,9 +454,6 @@ RunService.Heartbeat:Connect(function(dt)
     end
 end)
 
--- ══════════════════════════════════════════════════════════════
--- FINAL NOTIFICATION
--- ══════════════════════════════════════════════════════════════
-task.wait(0.5)  -- let GUI settle first
-notify("WOLFVXPE REWRITE", "Loaded  |  Q = Kill Aura  •  R = Aim  •  RShift = Menu", 4)
+
+wolfNotify("✓  WOLFVXPE LOADED", "Q = Kill Aura  •  R = Aim  •  RShift = Menu", 5)
 print("[ WOLFVXPE REWRITE ] Loaded — pistademon | Vape KA Engine | Q=KA  R=Aim  RightShift=Menu")
