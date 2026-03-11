@@ -150,7 +150,9 @@ execModule("Module3_KBReducer.lua")
 -- 5. Aim Assist — appends to CombatTab, provides ctx.doAimAssist
 execModule("Module4_AimAssist.lua")
 
-
+-- 6. FPS + ESP — provides ctx.ESPTab, ctx.diagBlock, ctx.updateESP,
+--    ctx.refreshESP, ctx.createESPFor, ctx.removeESPFor,
+--    ctx.pingData, ctx.updatePing, ctx.fpsSamples, ctx.diagTimer
 execModule("Module5_FPSBoost.lua")
 
 -- 7. Credits + Changelog
@@ -162,7 +164,13 @@ execModule("Module8_KitESP.lua")
 -- 9. Animations tab
 execModule("Module9_Animations.lua")
 
-
+-- ══════════════════════════════════════════════════════════════
+-- WOLFVXPE STANDALONE NOTIFICATION SYSTEM
+-- Completely independent of UI library.
+-- Green theme matching splash screen.
+-- Slide-up from bottom, progress bar, fade-out.
+-- Queues multiple notifications — shows one at a time.
+-- ══════════════════════════════════════════════════════════════
 local _nGui = Instance.new("ScreenGui")
 _nGui.Name           = "WolfVXPE_Notify"
 _nGui.ResetOnSpawn   = false
@@ -370,7 +378,9 @@ end)
 -- ══════════════════════════════════════════════════════════════
 ctx.entitylib.start()
 
-
+-- ══════════════════════════════════════════════════════════════
+-- KEYBINDS  —  Q = Kill Aura  •  R = Aim Assist
+-- ══════════════════════════════════════════════════════════════
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
     if input.KeyCode == Enum.KeyCode.Q then
@@ -454,6 +464,8 @@ RunService.Heartbeat:Connect(function(dt)
     end
 end)
 
-
+-- ══════════════════════════════════════════════════════════════
+-- FINAL NOTIFICATION
+-- ══════════════════════════════════════════════════════════════
 wolfNotify("✓  WOLFVXPE LOADED", "Q = Kill Aura  •  R = Aim  •  RShift = Menu", 5)
 print("[ WOLFVXPE REWRITE ] Loaded — pistademon | Vape KA Engine | Q=KA  R=Aim  RightShift=Menu")
