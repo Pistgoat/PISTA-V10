@@ -1,30 +1,8 @@
---[[
-    ██╗    ██╗ ██████╗ ██╗     ███████╗    ██╗   ██╗██╗  ██╗██████╗ ███████╗
-    ██║    ██║██╔═══██╗██║     ██╔════╝    ██║   ██║╚██╗██╔╝██╔══██╗██╔════╝
-    ██║ █╗ ██║██║   ██║██║     █████╗      ██║   ██║ ╚███╔╝ ██████╔╝█████╗
-    ██║███╗██║██║   ██║██║     ██╔══╝      ╚██╗ ██╔╝ ██╔██╗ ██╔═══╝ ██╔══╝
-    ╚███╔███╔╝╚██████╔╝███████╗██║          ╚████╔╝ ██╔╝ ██╗██║     ███████╗
-     ╚══╝╚══╝  ╚═════╝ ╚══════╝╚═╝           ╚═══╝  ╚═╝  ╚═╝╚═╝     ╚══════╝
-
-    WOLFVXPE  (REWRITE)  —  Ash-Libs Edition
-    Originally by pistademon | Rewritten & Enhanced Edition
-    Vape Kill Aura Engine  •  KB Reducer  •  Aim Assist  •  ESP  •  FPS
-
-    MODULAR LOADER — loads 9 modules in dependency order:
-      Module7_Profile.lua     → Profile save/load, state tables, auto-save
-      Module1_GUI.lua         → Splash, Colors, Ash-Libs window, Toast
-      Module2_KillAura.lua    → Vape EntityLib, Bedwars, KA Engine, KATab
-      Module3_KBReducer.lua   → CombatTab creation, KB Reducer section
-      Module4_AimAssist.lua   → Aim Assist logic + AA section on CombatTab
-      Module5_FPSBoost.lua    → ESP logic/tab, FPS tab, Ping stabilizer
-      Module6_Credits.lua     → Credits tab, Changelog tab
-      Module8_KitESP.lua      → Kit ESP section appended to ESPTab
-      Module9_Animations.lua  → Animations tab
-]]
 
 -- ══════════════════════════════════════════════════════════════
--- SERVICES  (cached once — fastest possible lookup)
--- ══════════════════════════════════════════════════════════════
+
+local REPO_BASE = "https://raw.githubusercontent.com/Pistgoat/PISTA-V10/main"
+
 local Players          = game:GetService("Players")
 local RunService       = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
@@ -39,15 +17,16 @@ local PlayerGui   = LocalPlayer:WaitForChild("PlayerGui")
 local Mouse       = LocalPlayer:GetMouse()
 local Camera      = workspace.CurrentCamera
 
--- Fast local refs to built-ins (micro-optimise hot paths)
 local tinsert, tremove, tclone = table.insert, table.remove, table.clone
 local mfloor, mcos, mrad, mabs = math.floor, math.cos, math.rad, math.abs
-local v3new, cf3new            = Vector3.new, CFrame.new
+local v3new, cf3new = Vector3.new, CFrame.new
 
--- ── cloneref safety wrapper ───────────────────────────────────
-local cloneref = cloneref or function(obj) return obj end
 
--- ── Anti-AFK ─────────────────────────────────────────────────
+local function getChar()     return LocalPlayer.Character end
+local function getRoot()     local c=getChar(); return c and c:FindFirstChild("HumanoidRootPart") end
+local function getHumanoid() local c=getChar(); return c and c:FindFirstChild("Humanoid") end
+
+
 local ok, VirtualUser = pcall(function() return game:GetService("VirtualUser") end)
 if ok and VirtualUser then
     LocalPlayer.Idled:Connect(function()
@@ -57,18 +36,147 @@ if ok and VirtualUser then
     end)
 end
 
--- ══════════════════════════════════════════════════════════════
--- CHARACTER HELPERS
--- ══════════════════════════════════════════════════════════════
-local function getChar()     return LocalPlayer.Character end
-local function getRoot()     local c=getChar(); return c and c:FindFirstChild("HumanoidRootPart") end
-local function getHumanoid() local c=getChar(); return c and c:FindFirstChild("Humanoid") end
+
+local function loadMod(filename, moduleCtx)
+    local url = REPO_BASE .. "/" .. filename
+    local ok2, result = pcall(function() return game:HttpGet(url, true) end)
+    if not ok2 then
+        error("[WolfVXPE] HttpGet failed for " .. filename .. ": " .. tostring(result))
+    end
+    local fn, compileErr = loadstring(result)
+    if not fn then
+        error("[WolfVXPE] Compile error in " .. filename .. ": " .. tostring(compileErr))
+    end
+    local innerFn = fn()
+    if type(innerFn) ~= "function" then
+        error("[WolfVXPE] " .. filename .. " did not return a factory function")
+    end
+    return innerFn(moduleCtx)
+end
+
+
+local Profile     = loadMod("Module7_Profile.lua", nil)
+local P           = Profile.P
+local saveProfile = Profile.saveProfile
+
+
+
+-- Kill Aura
+local ka = {
+    enabled      = P("ka_enabled",      false),
+    range        = P("ka_range",        16),
+    teamCheck    = P("ka_teamCheck",    true),
+    delay        = P("ka_delay",        0.05),
+    angleDeg     = P("ka_angle",        180),
+    requireMouse = P("ka_requireMouse", false),
+    limitToItems = P("ka_limitToItems", false),
+    ignoreWalls  = P("ka_ignoreWalls",  false),
+    multiHit     = P("ka_multiHit",     true),
+    hitfix       = P("ka_hitfix",       true),
+    hitboxes     = P("ka_hitboxes",     false),
+    hitboxExpand = P("ka_hitboxExpand", 38),
+    useSwingMode = P("ka_useSwingMode", true),
+}
+
+-- KB Reducer
+local kb = {
+    enabled      = P("kb_enabled",  false),
+    strength     = P("kb_strength", 0.25),
+    lastVelocity = Vector3.zero,
+}
+
+-- Aim Assist
+local aim = {
+    enabled   = P("aim_enabled",   false),
+    teamCheck = P("aim_teamCheck", false),
+    range     = P("aim_range",     60),
+    smoothing = P("aim_smoothing", 0.08),
+    target    = nil,
+}
+
+-- Player ESP
+local esp = {
+    enabled   = P("esp_enabled",   true),
+    chams     = P("esp_chams",     true),
+    names     = P("esp_names",     true),
+    health    = P("esp_health",    true),
+    distance  = P("esp_distance",  true),
+    fillAlpha = P("esp_fillAlpha", 0.6),
+    objects   = {},
+}
+
+-- FPS
+local fpsState = {
+    greysky     = P("fps_greysky",     false),
+    greyplayers = P("fps_greyplayers", false),
+    noshadows   = P("fps_noshadows",   false),
+}
+
+-- Kit ESP
+local kitESP = {
+    enabled    = P("kitESP_enabled",    true),
+    iconSize   = P("kitESP_iconSize",   32),
+    colorTheme = P("kitESP_colorTheme", "Default"),
+}
+
+-- Animations
+local anims = {
+    enabled      = P("anim_enabled",      false),
+    selectedPack = P("anim_selectedPack", "Vampire"),
+    cycleMode    = P("anim_cycleMode",    false),
+}
 
 -- ══════════════════════════════════════════════════════════════
--- SHARED CONTEXT TABLE
+-- PROFILE COLLECT + SAVE
 -- ══════════════════════════════════════════════════════════════
-local ctx = {
-    -- Services
+local function collectAndSave()
+    saveProfile({
+        ka_enabled       = ka.enabled,
+        ka_range         = ka.range,
+        ka_teamCheck     = ka.teamCheck,
+        ka_delay         = ka.delay,
+        ka_angle         = ka.angleDeg,
+        ka_requireMouse  = ka.requireMouse,
+        ka_limitToItems  = ka.limitToItems,
+        ka_ignoreWalls   = ka.ignoreWalls,
+        ka_multiHit      = ka.multiHit,
+        ka_hitfix        = ka.hitfix,
+        ka_hitboxes      = ka.hitboxes,
+        ka_hitboxExpand  = ka.hitboxExpand,
+        ka_useSwingMode  = ka.useSwingMode,
+        kb_enabled       = kb.enabled,
+        kb_strength      = kb.strength,
+        aim_enabled      = aim.enabled,
+        aim_teamCheck    = aim.teamCheck,
+        aim_range        = aim.range,
+        aim_smoothing    = aim.smoothing,
+        esp_enabled      = esp.enabled,
+        esp_chams        = esp.chams,
+        esp_names        = esp.names,
+        esp_health       = esp.health,
+        esp_distance     = esp.distance,
+        esp_fillAlpha    = esp.fillAlpha,
+        fps_greysky      = fpsState.greysky,
+        fps_greyplayers  = fpsState.greyplayers,
+        fps_noshadows    = fpsState.noshadows,
+        kitESP_enabled   = kitESP.enabled,
+        kitESP_iconSize  = kitESP.iconSize,
+        kitESP_colorTheme = kitESP.colorTheme,
+        anim_enabled     = anims.enabled,
+        anim_selectedPack = anims.selectedPack,
+        anim_cycleMode   = anims.cycleMode,
+    })
+end
+
+-- Auto-save every 10s
+task.spawn(function()
+    while true do task.wait(10); collectAndSave() end
+end)
+
+-- ══════════════════════════════════════════════════════════════
+-- SERVICES BUNDLE
+-- ══════════════════════════════════════════════════════════════
+local services = {
     Players           = Players,
     RunService        = RunService,
     UserInputService  = UserInputService,
@@ -77,185 +185,303 @@ local ctx = {
     Lighting          = Lighting,
     Stats             = Stats,
     CoreGui           = CoreGui,
-    -- Player refs
-    LocalPlayer = LocalPlayer,
-    PlayerGui   = PlayerGui,
-    Mouse       = Mouse,
-    Camera      = Camera,
-    -- Fast refs
-    tinsert  = tinsert,
-    tremove  = tremove,
-    tclone   = tclone,
-    mfloor   = mfloor,
-    mcos     = mcos,
-    mrad     = mrad,
-    mabs     = mabs,
-    v3new    = v3new,
-    cf3new   = cf3new,
-    cloneref = cloneref,
-    -- Character helpers
-    getChar     = getChar,
-    getRoot     = getRoot,
-    getHumanoid = getHumanoid,
+    LocalPlayer       = LocalPlayer,
+    PlayerGui         = PlayerGui,
+    Mouse             = Mouse,
+    Camera            = Camera,
 }
 
 -- ══════════════════════════════════════════════════════════════
--- GITHUB RAW BASE URL
+-- MODULE 1: GUI
 -- ══════════════════════════════════════════════════════════════
-local REPO = "https://raw.githubusercontent.com/Pistgoat/PISTA-V10/main/"
+local GUI = loadMod("Module1_GUI.lua", {
+    services       = services,
+    esp            = esp,
+    collectAndSave = collectAndSave,
+    mfloor         = mfloor,
+})
 
--- ══════════════════════════════════════════════════════════════
--- MODULE LOADER HELPER
--- ══════════════════════════════════════════════════════════════
-local function execModule(name)
-    local source
-    local ok1 = pcall(function()
-        source = game:HttpGet(REPO .. name, true)
-    end)
-    if not ok1 or not source or source == "" then
-        warn("[WolfVXPE Loader] Failed to fetch " .. name)
-        return
-    end
-    local fn, compErr = loadstring(source)
-    if not fn then
-        warn("[WolfVXPE Loader] Failed to compile " .. name .. ": " .. tostring(compErr))
-        return
-    end
-    local mod = fn()
-    if type(mod) == "function" then
-        local ok2, runErr = pcall(mod, ctx)
-        if not ok2 then
-            warn("[WolfVXPE Loader] Error in " .. name .. ": " .. tostring(runErr))
-        end
-    else
-        warn("[WolfVXPE Loader] " .. name .. " did not return a function.")
-    end
-end
+local Window        = GUI.Window
+local KATab         = GUI.KATab
+local CombatTab     = GUI.CombatTab
+local ESPTab        = GUI.ESPTab
+local FPSTab        = GUI.FPSTab
+local CredTab       = GUI.CredTab
+local CLTab         = GUI.CLTab
+local updateESP     = GUI.updateESP
+local refreshESP    = GUI.refreshESP
+local createESPFor  = GUI.createESPFor
+local removeESPFor  = GUI.removeESPFor
+local PURPLE_PRIMARY = GUI.PURPLE_PRIMARY
+local PURPLE_DEEP    = GUI.PURPLE_DEEP
+local PURPLE_GLOW    = GUI.PURPLE_GLOW
+local PURPLE_BG      = GUI.PURPLE_BG
+local PURPLE_BG_MID  = GUI.PURPLE_BG_MID
+local PURPLE_DIM     = GUI.PURPLE_DIM
 
 -- ══════════════════════════════════════════════════════════════
--- LOAD ALL 9 MODULES  (strict dependency order)
+-- MODULE 2: KILL AURA
 -- ══════════════════════════════════════════════════════════════
--- 1. Profile first — provides ctx.ka/kb/aim/esp/fpsState/collectAndSave
-execModule("Module7_Profile.lua")
+local KillAura = loadMod("Module2_KillAura.lua", {
+    services       = services,
+    ka             = ka,
+    KATab          = KATab,
+    collectAndSave = collectAndSave,
+    mfloor         = mfloor,
+})
 
--- 2. GUI — provides ctx.GUI, ctx.Window (Ash-Libs wrapper), colors
-execModule("Module1_GUI.lua")
-
--- 3. Kill Aura — provides ctx.entitylib, ctx.bedwars
-execModule("Module2_KillAura.lua")
-
--- 4. KB Reducer — creates CombatTab, provides ctx.CombatTab
-execModule("Module3_KBReducer.lua")
-
--- 5. Aim Assist — appends to CombatTab, provides ctx.doAimAssist
-execModule("Module4_AimAssist.lua")
-
--- 6. FPS + ESP — provides ctx.ESPTab, ctx.diagBlock, ctx.updateESP,
---    ctx.refreshESP, ctx.createESPFor, ctx.removeESPFor,
---    ctx.pingData, ctx.updatePing, ctx.fpsSamples, ctx.diagTimer
-execModule("Module5_FPSBoost.lua")
-
--- 7. Credits + Changelog
-execModule("Module6_Credits.lua")
-
--- 8. Kit ESP — appends to ctx.ESPTab (needs Module5)
-execModule("Module8_KitESP.lua")
-
--- 9. Animations tab
-execModule("Module9_Animations.lua")
+local entitylib         = KillAura.entitylib
+local getBedwarsReady   = KillAura.getBedwarsReady
+local setRayFilterDirty = KillAura.setRayFilterDirty
 
 -- ══════════════════════════════════════════════════════════════
--- NOTIFY HELPER  —  Ash-Libs: GUI:CreateNotify
+-- MODULE 3: KB REDUCER
 -- ══════════════════════════════════════════════════════════════
+loadMod("Module3_KBReducer.lua", {
+    CombatTab      = CombatTab,
+    kb             = kb,
+    collectAndSave = collectAndSave,
+    mfloor         = mfloor,
+})
+
 -- ══════════════════════════════════════════════════════════════
--- STANDALONE NOTIFICATION SYSTEM
--- Lives entirely in the Loader — zero module dependency.
--- Works from the first line. Never fails silently.
+-- MODULE 4: AIM ASSIST
 -- ══════════════════════════════════════════════════════════════
-local _notifGui = Instance.new("ScreenGui")
-_notifGui.Name           = "WolfVXPE_Notifs"
-_notifGui.ResetOnSpawn   = false
-_notifGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-_notifGui.DisplayOrder   = 10000
-_notifGui.Parent         = CoreGui
+local AimAssist = loadMod("Module4_AimAssist.lua", {
+    CombatTab      = CombatTab,
+    aim            = aim,
+    collectAndSave = collectAndSave,
+    services       = services,
+    mfloor         = mfloor,
+})
 
-local _notifQueue   = {}
-local _notifBusy    = false
+local doAimAssist = AimAssist.doAimAssist
 
-local _NP  = Color3.fromRGB(138, 43,  226)
-local _ND  = Color3.fromRGB(60,  10,  100)
-local _NG  = Color3.fromRGB(220, 180, 255)
-local _NDm = Color3.fromRGB(180, 100, 255)
-local _NB  = Color3.fromRGB(8,   4,   14)
-local _NBM = Color3.fromRGB(16,  8,   28)
+-- ══════════════════════════════════════════════════════════════
+-- MODULE 5: FPS BOOST
+-- ══════════════════════════════════════════════════════════════
+local FPSBoost = loadMod("Module5_FPSBoost.lua", {
+    FPSTab         = FPSTab,
+    fpsState       = fpsState,
+    collectAndSave = collectAndSave,
+    Window         = Window,
+    services       = services,
+    mfloor         = mfloor,
+    tremove        = tremove,
+    tclone         = tclone,
+})
 
-local function _showNotif(title, body, duration)
-    duration = duration or 2.5
-    local card = Instance.new("Frame", _notifGui)
-    card.Size             = UDim2.new(0, 320, 0, 60)
-    card.AnchorPoint      = Vector2.new(1, 1)
-    card.Position         = UDim2.new(1, -14, 1, 80)
-    card.BackgroundColor3 = _NB
-    card.BorderSizePixel  = 0
-    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 9)
-    local sk = Instance.new("UIStroke", card)
-    sk.Color = _NP; sk.Thickness = 1.2; sk.Transparency = 0.15
-    local bg = Instance.new("UIGradient", card)
-    bg.Color    = ColorSequence.new({ ColorSequenceKeypoint.new(0,_NB), ColorSequenceKeypoint.new(1,_NBM) })
-    bg.Rotation = 90
-    local accent = Instance.new("Frame", card)
-    accent.Size = UDim2.new(0,3,1,-12); accent.Position = UDim2.new(0,6,0,6)
-    accent.BackgroundColor3 = _NP; accent.BorderSizePixel = 0
-    Instance.new("UICorner", accent).CornerRadius = UDim.new(1,0)
-    local tl = Instance.new("TextLabel", card)
-    tl.Size = UDim2.new(1,-20,0,20); tl.Position = UDim2.new(0,15,0,7)
-    tl.BackgroundTransparency = 1; tl.Text = title
-    tl.TextColor3 = _NG; tl.Font = Enum.Font.GothamBold
-    tl.TextSize = 13; tl.TextXAlignment = Enum.TextXAlignment.Left
-    tl.TextTransparency = 0
-    local bl = Instance.new("TextLabel", card)
-    bl.Size = UDim2.new(1,-20,0,13); bl.Position = UDim2.new(0,15,0,31)
-    bl.BackgroundTransparency = 1; bl.Text = body
-    bl.TextColor3 = _NDm; bl.Font = Enum.Font.Gotham
-    bl.TextSize = 11; bl.TextXAlignment = Enum.TextXAlignment.Left
-    bl.TextTransparency = 0
-    local prog = Instance.new("Frame", card)
-    prog.Size = UDim2.new(1,0,0,2); prog.Position = UDim2.new(0,0,1,-2)
-    prog.BackgroundColor3 = _NP; prog.BorderSizePixel = 0
-    TweenService:Create(card,
-        TweenInfo.new(0.32, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-        { Position = UDim2.new(1,-14,1,-14) }):Play()
-    TweenService:Create(prog,
-        TweenInfo.new(duration, Enum.EasingStyle.Linear),
-        { Size = UDim2.new(0,0,0,2) }):Play()
-    task.wait(duration)
-    local fo = TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-    TweenService:Create(card, fo, { Position = UDim2.new(1,-14,1,80), BackgroundTransparency=1 }):Play()
-    TweenService:Create(tl,   fo, { TextTransparency = 1 }):Play()
-    TweenService:Create(bl,   fo, { TextTransparency = 1 }):Play()
-    task.wait(0.27)
-    pcall(function() card:Destroy() end)
-end
+local diagBlock  = FPSBoost.diagBlock
+local updatePing = FPSBoost.updatePing
+local pingData   = FPSBoost.pingData
 
-local function _runQueue()
-    if _notifBusy then return end
-    _notifBusy = true
+-- ══════════════════════════════════════════════════════════════
+-- MODULE 6: CREDITS
+-- ══════════════════════════════════════════════════════════════
+loadMod("Module6_Credits.lua", {
+    CredTab        = CredTab,
+    CLTab          = CLTab,
+    Window         = Window,
+    collectAndSave = collectAndSave,
+})
+
+-- ══════════════════════════════════════════════════════════════
+-- MODULE 8: KIT ESP  (appends to ESPTab)
+-- ══════════════════════════════════════════════════════════════
+local KitESP = loadMod("Module8_KitESP.lua", {
+    ESPTab         = ESPTab,
+    services       = services,
+    kitESP         = kitESP,
+    collectAndSave = collectAndSave,
+    P              = P,
+})
+
+local kitTick = KitESP.kitTick
+
+-- ══════════════════════════════════════════════════════════════
+-- MODULE 9: ANIMATIONS  (creates new Animations tab)
+-- ══════════════════════════════════════════════════════════════
+loadMod("Module9_Animations.lua", {
+    Window         = Window,
+    services       = services,
+    anims          = anims,
+    collectAndSave = collectAndSave,
+    P              = P,
+})
+
+-- ══════════════════════════════════════════════════════════════
+-- CUSTOM TOGGLE NOTIFICATION  (purple premium, NOT UILib)
+-- ══════════════════════════════════════════════════════════════
+local function showToggleNotif(title, message, isOn)
     task.spawn(function()
-        while #_notifQueue > 0 do
-            local item = table.remove(_notifQueue, 1)
-            _showNotif(item.t, item.b, item.d)
-            task.wait(0.08)
-        end
-        _notifBusy = false
+        local tGui = Instance.new("ScreenGui", CoreGui)
+        tGui.Name         = "WolfVXPE_ToggleNotif_" .. tostring(tick())
+        tGui.ResetOnSpawn = false
+        tGui.DisplayOrder = 9997
+
+        local toast = Instance.new("Frame", tGui)
+        toast.Size                   = UDim2.new(0, 340, 0, 60)
+        toast.AnchorPoint            = Vector2.new(1, 1)
+        toast.Position               = UDim2.new(1, -16, 1, 90)
+        toast.BackgroundColor3       = PURPLE_BG
+        toast.BackgroundTransparency = 0.04
+        toast.BorderSizePixel        = 0
+        Instance.new("UICorner", toast).CornerRadius = UDim.new(0, 10)
+
+        local borderCol = isOn and Color3.fromRGB(134, 239, 172) or PURPLE_PRIMARY
+        local tStroke   = Instance.new("UIStroke", toast)
+        tStroke.Color        = borderCol
+        tStroke.Thickness    = 1.3
+        tStroke.Transparency = 0.15
+
+        local tBgGrad = Instance.new("UIGradient", toast)
+        tBgGrad.Color = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, PURPLE_BG),
+            ColorSequenceKeypoint.new(1, PURPLE_BG_MID),
+        })
+        tBgGrad.Rotation = 90
+
+        local tAccent = Instance.new("Frame", toast)
+        tAccent.Size             = UDim2.new(0, 3, 1, -14)
+        tAccent.Position         = UDim2.new(0, 8, 0, 7)
+        tAccent.BackgroundColor3 = borderCol
+        tAccent.BorderSizePixel  = 0
+        Instance.new("UICorner", tAccent).CornerRadius = UDim.new(1, 0)
+
+        local tTop = Instance.new("TextLabel", toast)
+        tTop.Size                   = UDim2.new(1, -26, 0, 22)
+        tTop.Position               = UDim2.new(0, 18, 0, 7)
+        tTop.BackgroundTransparency = 1
+        tTop.Text                   = title .. "   " .. (isOn and "[ ON ]" or "[ OFF ]")
+        tTop.TextColor3             = isOn and Color3.fromRGB(134, 239, 172) or PURPLE_GLOW
+        tTop.TextStrokeColor3       = PURPLE_DEEP
+        tTop.TextStrokeTransparency = 0.5
+        tTop.Font                   = Enum.Font.GothamBold
+        tTop.TextSize               = 13
+        tTop.TextXAlignment         = Enum.TextXAlignment.Left
+
+        local tSub = Instance.new("TextLabel", toast)
+        tSub.Size                   = UDim2.new(1, -26, 0, 13)
+        tSub.Position               = UDim2.new(0, 18, 0, 33)
+        tSub.BackgroundTransparency = 1
+        tSub.Text                   = message
+        tSub.TextColor3             = PURPLE_DIM
+        tSub.Font                   = Enum.Font.Gotham
+        tSub.TextSize               = 11
+        tSub.TextXAlignment         = Enum.TextXAlignment.Left
+
+        TweenService:Create(toast,
+            TweenInfo.new(0.44, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Position = UDim2.new(1, -16, 1, -16),
+            }):Play()
+
+        task.wait(2.6)
+
+        local outInfo = TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+        TweenService:Create(toast, outInfo, {
+            Position               = UDim2.new(1, -16, 1, 90),
+            BackgroundTransparency = 1,
+        }):Play()
+        TweenService:Create(tTop,    outInfo, {TextTransparency = 1}):Play()
+        TweenService:Create(tSub,    outInfo, {TextTransparency = 1}):Play()
+        TweenService:Create(tAccent, outInfo, {BackgroundTransparency = 1}):Play()
+        task.wait(0.30)
+        pcall(function() tGui:Destroy() end)
     end)
 end
 
-local function notify(title, body, duration)
-    table.insert(_notifQueue, { t = title or "", b = body or "", d = duration or 2.5 })
-    _runQueue()
-end
--- Also push onto ctx so modules can call ctx.notify(...)
-ctx.notify = notify
+-- ══════════════════════════════════════════════════════════════
+-- KEYBINDS  (Q = Kill Aura  |  R = Aim Assist)
+-- ══════════════════════════════════════════════════════════════
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == Enum.KeyCode.Q then
+        ka.enabled = not ka.enabled
+        collectAndSave()
+        showToggleNotif(
+            "Kill Aura",
+            ka.enabled
+                and ("Vape Engine  •  " .. (getBedwarsReady() and "SwingMode" or "FireServer"))
+                or  "Disabled",
+            ka.enabled
+        )
+    elseif input.KeyCode == Enum.KeyCode.R then
+        aim.enabled = not aim.enabled
+        if not aim.enabled then aim.target = nil end
+        collectAndSave()
+        showToggleNotif(
+            "Aim Assist",
+            aim.enabled and "Camera locking to torso" or "Disabled",
+            aim.enabled
+        )
+    end
+end)
+
+-- ══════════════════════════════════════════════════════════════
+-- MAIN LOOPS  —  RENDERSTEPPED + HEARTBEAT
+-- ══════════════════════════════════════════════════════════════
+local fpsSamples = {}
+local diagTimer  = 0
+
+RunService.RenderStepped:Connect(function(dt)
+    doAimAssist()
+    updateESP()
+    refreshESP(dt)
+
+    fpsSamples[#fpsSamples + 1] = dt > 0 and 1 / dt or 60
+    if #fpsSamples > 30 then tremove(fpsSamples, 1) end
+
+    diagTimer = diagTimer + dt
+    if diagTimer >= 1 then
+        diagTimer = 0
+        local sum = 0
+        for _, v in ipairs(fpsSamples) do sum = sum + v end
+        local avgFps = mfloor(sum / #fpsSamples)
+
+        updatePing()
+        local pm  = mfloor(pingData.smooth)
+        local pc  = pm < 50 and "LOW" or pm < 100 and "MID" or "HIGH"
+        local ft  = avgFps >= 60 and "GREAT" or avgFps >= 30 and "OK" or "LOW"
+        local kaS = ka.enabled  and "ON (" .. (getBedwarsReady() and "Vape" or "FS") .. ")" or "OFF"
+        local aaS = aim.enabled and "ON" or "OFF"
+
+        pcall(function()
+            diagBlock:SetCode(string.format(
+                "FPS        : %d  [%s]\nPING       : %dms  [%s]\nKill Aura  : %s  |  Aim: %s",
+                avgFps, ft, pm, pc, kaS, aaS
+            ))
+        end)
+    end
+end)
+
+local gcTimer = 0
+RunService.Heartbeat:Connect(function(dt)
+    -- KB Reducer (BUGFIX: AssemblyLinearVelocity)
+    local root = getRoot()
+    local hum  = getHumanoid()
+    if root and hum and hum.Health > 0 and kb.enabled and kb.strength > 0 then
+        local cur   = root.AssemblyLinearVelocity
+        local delta = (cur - kb.lastVelocity).Magnitude
+        if delta > 10 then
+            local m       = 1 - kb.strength
+            local reduced = v3new(cur.X * m, cur.Y, cur.Z * m)
+            pcall(function() root.AssemblyLinearVelocity = reduced end)
+            kb.lastVelocity = reduced
+        else
+            kb.lastVelocity = cur
+        end
+    end
+
+    -- Kit ESP 30-second refresh tick
+    if kitTick then kitTick(dt) end
+
+    -- GC every 60s
+    gcTimer = gcTimer + dt
+    if gcTimer >= 60 then
+        gcTimer = 0
+        collectgarbage()
+    end
+end)
 
 -- ══════════════════════════════════════════════════════════════
 -- PLAYER / CHARACTER EVENTS
@@ -263,11 +489,11 @@ ctx.notify = notify
 local function onNewChar(player, char)
     task.wait(0.5)
     if player == LocalPlayer then
-        ctx.kb.lastVelocity = Vector3.zero
-        ctx.aim.target      = nil
+        kb.lastVelocity = Vector3.zero
+        aim.target      = nil
         return
     end
-    if ctx.fpsState.greyplayers then
+    if fpsState.greyplayers then
         for _, p in ipairs(char:GetDescendants()) do
             if p:IsA("BasePart") then
                 p.BrickColor  = BrickColor.new("Medium stone grey")
@@ -280,9 +506,9 @@ local function onNewChar(player, char)
             end
         end
     end
-    if ctx.esp.enabled then
+    if esp.enabled then
         task.wait(0.2)
-        ctx.createESPFor(player)
+        createESPFor(player)
     end
 end
 
@@ -296,106 +522,27 @@ Players.PlayerAdded:Connect(function(p)
 end)
 
 Players.PlayerRemoving:Connect(function(p)
-    ctx.removeESPFor(p)
-    if ctx.aim.target == p then ctx.aim.target = nil end
+    removeESPFor(p)
+    if aim.target == p then aim.target = nil end
 end)
 
 LocalPlayer.CharacterAdded:Connect(function()
-    ctx.kb.lastVelocity = Vector3.zero
-    ctx.aim.target      = nil
+    kb.lastVelocity = Vector3.zero
+    aim.target      = nil
+    setRayFilterDirty(true)
 end)
 
 -- ══════════════════════════════════════════════════════════════
--- START ENTITY LIB  (Vape — after all connections set up)
+-- START ENTITY LIB
 -- ══════════════════════════════════════════════════════════════
-ctx.entitylib.start()
-
--- ══════════════════════════════════════════════════════════════
--- KEYBINDS  —  Q = Kill Aura  •  R = Aim Assist
--- ══════════════════════════════════════════════════════════════
-UserInputService.InputBegan:Connect(function(input, gp)
-    if gp then return end
-    if input.KeyCode == Enum.KeyCode.Q then
-        ctx.ka.enabled = not ctx.ka.enabled
-        ctx.collectAndSave()
-        notify("Kill Aura",
-            ctx.ka.enabled and "Kill Aura  ON  (Vape Engine)" or "Kill Aura  OFF")
-    elseif input.KeyCode == Enum.KeyCode.R then
-        ctx.aim.enabled = not ctx.aim.enabled
-        if not ctx.aim.enabled then
-            ctx.aim.target = nil
-            pcall(function() ctx.onAimToggle() end)
-        end
-        ctx.collectAndSave()
-        notify("Aim Assist",
-            ctx.aim.enabled and "Aim Assist  ON" or "Aim Assist  OFF")
-    end
-end)
+entitylib.start()
 
 -- ══════════════════════════════════════════════════════════════
--- MAIN LOOPS — RENDERSTEPPED + HEARTBEAT
+-- INITIAL NOTIFICATION
 -- ══════════════════════════════════════════════════════════════
-RunService.RenderStepped:Connect(function(dt)
-    ctx.doAimAssist()
-    ctx.updateESP()
-    ctx.refreshESP(dt)
-
-    ctx.fpsSamples[#ctx.fpsSamples + 1] = dt > 0 and 1 / dt or 60
-    if #ctx.fpsSamples > 30 then tremove(ctx.fpsSamples, 1) end
-
-    ctx.diagTimer = ctx.diagTimer + dt
-    if ctx.diagTimer >= 1 then
-        ctx.diagTimer = 0
-
-        local sum = 0
-        for _, v in ipairs(ctx.fpsSamples) do sum = sum + v end
-        local avgFps = mfloor(sum / #ctx.fpsSamples)
-
-        ctx.updatePing()
-        local pm  = mfloor(ctx.pingData.smooth)
-        local pc  = pm < 50 and "LOW" or pm < 100 and "MID" or "HIGH"
-        local ft  = avgFps >= 60 and "GREAT" or avgFps >= 30 and "OK" or "LOW"
-        local kaS = ctx.ka.enabled
-                    and "ON (" .. (ctx._getBedwarsReady() and "Vape" or "FS") .. ")"
-                    or  "OFF"
-        local aaS = ctx.aim.enabled and "ON" or "OFF"
-
-        pcall(function()
-            ctx.diagBlock:SetCode(string.format(
-                "FPS        : %d  [%s]\nPING       : %dms  [%s]\nKill Aura  : %s  |  Aim: %s",
-                avgFps, ft, pm, pc, kaS, aaS
-            ))
-        end)
-    end
-end)
-
-local gcTimer = 0
-RunService.Heartbeat:Connect(function(dt)
-    local root = getRoot()
-    local hum  = getHumanoid()
-    if root and hum and hum.Health > 0 and ctx.kb.enabled and ctx.kb.strength > 0 then
-        local cur   = root.AssemblyLinearVelocity
-        local delta = (cur - ctx.kb.lastVelocity).Magnitude
-        if delta > 10 then
-            local m       = 1 - ctx.kb.strength
-            local reduced = v3new(cur.X * m, cur.Y, cur.Z * m)
-            pcall(function() root.AssemblyLinearVelocity = reduced end)
-            ctx.kb.lastVelocity = reduced
-        else
-            ctx.kb.lastVelocity = cur
-        end
-    end
-
-    gcTimer = gcTimer + dt
-    if gcTimer >= 60 then
-        gcTimer = 0
-        collectgarbage()
-    end
-end)
-
--- ══════════════════════════════════════════════════════════════
--- FINAL NOTIFICATION
--- ══════════════════════════════════════════════════════════════
-task.wait(0.5)  -- let GUI settle first
-notify("WOLFVXPE REWRITE", "Loaded  |  Q = Kill Aura  •  R = Aim  •  RShift = Menu", 4)
+Window:Notify({
+    Title = "WOLFVXPE REWRITE",
+    Desc  = "Loaded — Vape KA Engine | Q=KA  R=Aim  RightShift=Menu",
+    Time  = 5,
+})
 print("[ WOLFVXPE REWRITE ] Loaded — pistademon | Vape KA Engine | Q=KA  R=Aim  RightShift=Menu")
