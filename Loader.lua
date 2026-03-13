@@ -1,8 +1,27 @@
-
+-- ══════════════════════════════════════════════════════════════
+-- WOLFVXPE REWRITE — LOADER.LUA
+-- Execute:
+--   loadstring(game:HttpGet(
+--     "https://raw.githubusercontent.com/Pistgoat/PISTA-V10/main/Loader.lua"
+--   ))()
+--
+-- IMPROVEMENTS IN THIS VERSION:
+--   [SPEED]   Parallel HttpGet — all 9 modules downloaded at the
+--             same time. Load time = slowest single fetch, not sum.
+--   [FIX]     ContextActionService keybinds for Q and R — bypasses
+--             Bedwars "game processed" filter that silently blocked R.
+--   [FIX]     Module4_AimAssist self-manages via BindToRenderStep
+--             at RenderPriority.Last+1 so aim runs AFTER Bedwars
+--             camera code and the change actually sticks.
+--   [FIX]     Notifications use IgnoreGuiInset=true + CoreGui with
+--             PlayerGui fallback — always visible on screen.
+-- ══════════════════════════════════════════════════════════════
 
 local REPO_BASE = "https://raw.githubusercontent.com/Pistgoat/PISTA-V10/main"
 
-
+-- ══════════════════════════════════════════════════════════════
+-- SERVICES
+-- ══════════════════════════════════════════════════════════════
 local Players              = game:GetService("Players")
 local RunService           = game:GetService("RunService")
 local ContextActionService = game:GetService("ContextActionService")
@@ -21,12 +40,16 @@ local tinsert, tremove, tclone = table.insert, table.remove, table.clone
 local mfloor = math.floor
 local v3new  = Vector3.new
 
-
+-- ══════════════════════════════════════════════════════════════
+-- CHARACTER HELPERS
+-- ══════════════════════════════════════════════════════════════
 local function getChar()     return LocalPlayer.Character end
 local function getRoot()     local c = getChar(); return c and c:FindFirstChild("HumanoidRootPart") end
 local function getHumanoid() local c = getChar(); return c and c:FindFirstChild("Humanoid") end
 
-
+-- ══════════════════════════════════════════════════════════════
+-- ANTI-AFK
+-- ══════════════════════════════════════════════════════════════
 pcall(function()
     local VU = game:GetService("VirtualUser")
     LocalPlayer.Idled:Connect(function()
@@ -36,7 +59,12 @@ pcall(function()
     end)
 end)
 
-
+-- ══════════════════════════════════════════════════════════════
+-- PARALLEL MODULE PREFETCH
+-- All 9 files are downloaded simultaneously via task.spawn.
+-- Total wait time = slowest single request (not the sum).
+-- Execution order is still strict (see loadMod calls below).
+-- ══════════════════════════════════════════════════════════════
 local MODULE_NAMES = {
     "Module7_Profile.lua",
     "Module1_GUI.lua",
@@ -335,7 +363,12 @@ loadMod("Module9_Animations.lua", {
     P              = P,
 })
 
-
+-- ══════════════════════════════════════════════════════════════
+-- BULLETPROOF TOGGLE NOTIFICATION
+-- • IgnoreGuiInset = true  → renders over ALL game UI
+-- • DisplayOrder = 99999   → on top of everything
+-- • CoreGui first, PlayerGui fallback if CoreGui is locked
+-- ══════════════════════════════════════════════════════════════
 local function showToggleNotif(title, message, isOn)
     task.spawn(function()
         -- Find safest parent
