@@ -1,20 +1,8 @@
 -- ══════════════════════════════════════════════════════════════
 -- WOLFVXPE REWRITE — LOADER.LUA
--- Execute:
---   loadstring(game:HttpGet(
---     "https://raw.githubusercontent.com/Pistgoat/PISTA-V10/main/Loader.lua"
---   ))()
---
--- IMPROVEMENTS IN THIS VERSION:
---   [SPEED]   Parallel HttpGet — all 9 modules downloaded at the
---             same time. Load time = slowest single fetch, not sum.
---   [FIX]     ContextActionService keybinds for Q and R — bypasses
---             Bedwars "game processed" filter that silently blocked R.
---   [FIX]     Module4_AimAssist self-manages via BindToRenderStep
---             at RenderPriority.Last+1 so aim runs AFTER Bedwars
---             camera code and the change actually sticks.
---   [FIX]     Notifications use IgnoreGuiInset=true + CoreGui with
---             PlayerGui fallback — always visible on screen.
+-- loadstring(game:HttpGet(
+--   "https://raw.githubusercontent.com/Pistgoat/PISTA-V10/main/Loader.lua"
+-- ))()
 -- ══════════════════════════════════════════════════════════════
 
 local REPO_BASE = "https://raw.githubusercontent.com/Pistgoat/PISTA-V10/main"
@@ -40,6 +28,10 @@ local tinsert, tremove, tclone = table.insert, table.remove, table.clone
 local mfloor = math.floor
 local v3new  = Vector3.new
 
+-- cloneref: executor-level protected service ref.
+-- Falls back to identity if the executor doesn't support it.
+local cloneref = (typeof(cloneref) == "function" and cloneref) or function(x) return x end
+
 -- ══════════════════════════════════════════════════════════════
 -- CHARACTER HELPERS
 -- ══════════════════════════════════════════════════════════════
@@ -61,9 +53,6 @@ end)
 
 -- ══════════════════════════════════════════════════════════════
 -- PARALLEL MODULE PREFETCH
--- All 9 files are downloaded simultaneously via task.spawn.
--- Total wait time = slowest single request (not the sum).
--- Execution order is still strict (see loadMod calls below).
 -- ══════════════════════════════════════════════════════════════
 local MODULE_NAMES = {
     "Module7_Profile.lua",
@@ -92,7 +81,6 @@ for _, name in ipairs(MODULE_NAMES) do
     end)
 end
 
--- Wait for ALL fetches to complete before executing anything
 for _, name in ipairs(MODULE_NAMES) do
     while not _ready[name] do task.wait() end
     if not _cache[name] then
@@ -102,7 +90,6 @@ end
 
 print("[WolfVXPE] All " .. #MODULE_NAMES .. " modules fetched. Booting...")
 
--- Compile + execute a module from cache
 local function loadMod(filename, ctx)
     local fn, err = loadstring(_cache[filename])
     assert(fn, "[WolfVXPE] Compile error in " .. filename .. ":\n" .. tostring(err))
@@ -113,16 +100,15 @@ local function loadMod(filename, ctx)
 end
 
 -- ══════════════════════════════════════════════════════════════
--- MODULE 7: PROFILE  (no deps — always first)
+-- MODULE 7: PROFILE
 -- ══════════════════════════════════════════════════════════════
 local Profile     = loadMod("Module7_Profile.lua", nil)
 local P           = Profile.P
 local saveProfile = Profile.saveProfile
 
 -- ══════════════════════════════════════════════════════════════
--- STATE TABLES  (all features, loaded from saved profile)
+-- STATE TABLES
 -- ══════════════════════════════════════════════════════════════
-
 local ka = {
     enabled      = P("ka_enabled",      false),
     range        = P("ka_range",        16),
@@ -228,7 +214,7 @@ task.spawn(function()
 end)
 
 -- ══════════════════════════════════════════════════════════════
--- SERVICES BUNDLE
+-- SERVICES BUNDLE  (for modules that use ctx.services pattern)
 -- ══════════════════════════════════════════════════════════════
 local services = {
     Players           = Players,
@@ -274,18 +260,88 @@ local PURPLE_DIM     = GUI.PURPLE_DIM
 
 -- ══════════════════════════════════════════════════════════════
 -- MODULE 2: KILL AURA
+--
+-- This module was written with Ash-Libs API (GUI:CreateTab,
+-- GUI:CreateToggle, GUI:CreateSlider, etc.) and reads services
+-- directly off ctx instead of ctx.services.
+--
+-- We satisfy both by:
+--   1. Passing individual service refs directly in ctx
+--   2. Passing a GUI adapter object that maps Ash-Libs calls
+--      to our UIlib KATab methods — zero logic changes in module
+--   3. Reading entitylib/_getBedwarsReady from ctx after call
+--      (module exposes via ctx mutation, not return value)
 -- ══════════════════════════════════════════════════════════════
-local KillAura = loadMod("Module2_KillAura.lua", {
-    services       = services,
-    ka             = ka,
-    KATab          = KATab,
-    collectAndSave = collectAndSave,
-    mfloor         = mfloor,
-})
 
-local entitylib         = KillAura.entitylib
-local getBedwarsReady   = KillAura.getBedwarsReady
-local setRayFilterDirty = KillAura.setRayFilterDirty
+-- GUI adapter: Ash-Libs API → our UIlib KATab
+-- GUI:CreateTab()  returns KATab (already created in Module1)
+-- GUI:CreateSection/Toggle/Slider/Paragraph delegate to KATab
+local _kaGUI = {
+    CreateTab = function(self, _name, _icon)
+        -- Tab already exists — just return it
+        return KATab
+    end,
+    CreateSection = function(self, opts)
+        opts.parent:Section({ Title = opts.text })
+    end,
+    CreateToggle = function(self, opts)
+        opts.parent:Toggle({
+            Title    = opts.text,
+            Value    = opts.default,
+            Callback = opts.callback,
+        })
+    end,
+    CreateSlider = function(self, opts)
+        opts.parent:Slider({
+            Title    = opts.text,
+            Min      = opts.min,
+            Max      = opts.max,
+            Rounding = 0,
+            Value    = opts.default,
+            Callback = opts.callback,
+        })
+    end,
+    CreateParagraph = function(self, opts)
+        opts.parent:Paragraph({ Title = "Info", Content = opts.text })
+    end,
+}
+
+-- ctx for Module2 — individual refs as the module expects
+local _kaCtx = {
+    -- services (read directly, not via .services bundle)
+    Players           = Players,
+    UserInputService  = UserInputService,
+    ReplicatedStorage = ReplicatedStorage,
+    LocalPlayer       = LocalPlayer,
+    RunService        = RunService,
+    -- math / table
+    tinsert  = tinsert,
+    tremove  = tremove,
+    tclone   = tclone,
+    mcos     = math.cos,
+    mrad     = math.rad,
+    v3new    = Vector3.new,
+    -- executor helper
+    cloneref = cloneref,
+    -- character helpers
+    getChar     = getChar,
+    getRoot     = getRoot,
+    getHumanoid = getHumanoid,
+    -- state + save
+    ka             = ka,
+    collectAndSave = collectAndSave,
+    -- Ash-Libs adapter
+    GUI = _kaGUI,
+}
+
+-- Execute module — it mutates _kaCtx to expose entitylib etc.
+loadMod("Module2_KillAura.lua", _kaCtx)
+
+-- Read what module exposed via ctx mutation
+local entitylib       = _kaCtx.entitylib
+local getBedwarsReady = _kaCtx._getBedwarsReady
+-- Note: _rayFilterDirty is handled internally by the module's
+-- own LocalPlayer.CharacterAdded connection — no need to call it here.
 
 -- ══════════════════════════════════════════════════════════════
 -- MODULE 3: KB REDUCER
@@ -299,9 +355,8 @@ loadMod("Module3_KBReducer.lua", {
 
 -- ══════════════════════════════════════════════════════════════
 -- MODULE 4: AIM ASSIST
--- This module owns its own BindToRenderStep connection at
--- Enum.RenderPriority.Last + 1 so it runs AFTER Bedwars'
--- own camera update. No doAimAssist call needed here.
+-- Self-managed via BindToRenderStep Last+1 — runs after Bedwars.
+-- Toggle handled below via ContextActionService.
 -- ══════════════════════════════════════════════════════════════
 loadMod("Module4_AimAssist.lua", {
     CombatTab      = CombatTab,
@@ -365,13 +420,11 @@ loadMod("Module9_Animations.lua", {
 
 -- ══════════════════════════════════════════════════════════════
 -- BULLETPROOF TOGGLE NOTIFICATION
--- • IgnoreGuiInset = true  → renders over ALL game UI
--- • DisplayOrder = 99999   → on top of everything
--- • CoreGui first, PlayerGui fallback if CoreGui is locked
+-- IgnoreGuiInset=true + DisplayOrder=99999 + CoreGui/PlayerGui
+-- fallback ensures it always shows over all game UI layers.
 -- ══════════════════════════════════════════════════════════════
 local function showToggleNotif(title, message, isOn)
     task.spawn(function()
-        -- Find safest parent
         local guiParent = PlayerGui
         pcall(function()
             local t = Instance.new("Folder")
@@ -392,7 +445,7 @@ local function showToggleNotif(title, message, isOn)
         local toast = Instance.new("Frame", tGui)
         toast.Size                   = UDim2.new(0, 340, 0, 60)
         toast.AnchorPoint            = Vector2.new(1, 1)
-        toast.Position               = UDim2.new(1, -16, 1, 90) -- off screen below
+        toast.Position               = UDim2.new(1, -16, 1, 90)
         toast.BackgroundColor3       = PURPLE_BG
         toast.BackgroundTransparency = 0.04
         toast.BorderSizePixel        = 0
@@ -439,7 +492,6 @@ local function showToggleNotif(title, message, isOn)
         tSub.TextSize               = 11
         tSub.TextXAlignment         = Enum.TextXAlignment.Left
 
-        -- Slide in with springy Back easing
         TweenService:Create(toast,
             TweenInfo.new(0.44, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
                 Position = UDim2.new(1, -16, 1, -16),
@@ -447,7 +499,6 @@ local function showToggleNotif(title, message, isOn)
 
         task.wait(2.6)
 
-        -- Slide out + fade
         local outInfo = TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
         TweenService:Create(toast, outInfo, {
             Position               = UDim2.new(1, -16, 1, 90),
@@ -463,12 +514,8 @@ end
 
 -- ══════════════════════════════════════════════════════════════
 -- KEYBINDS — ContextActionService
---
--- WHY: Bedwars marks almost every keypress as gameProcessed=true.
--- UserInputService InputBegan checks `if gp then return end` which
--- silently drops R and sometimes Q. ContextActionService fires
--- BEFORE the game's input processing so gp is irrelevant.
--- Returning Pass means Bedwars still gets the key too.
+-- Fires BEFORE Bedwars sees input so gameProcessed=true
+-- never blocks Q or R.
 -- ══════════════════════════════════════════════════════════════
 ContextActionService:BindAction(
     "PISTA_ToggleKillAura",
@@ -513,9 +560,6 @@ ContextActionService:BindAction(
 
 -- ══════════════════════════════════════════════════════════════
 -- RENDERSTEPPED — ESP + FPS diag
--- NOTE: doAimAssist is NOT called here.
--- Module4 runs its own BindToRenderStep at Last+1 priority
--- so it executes AFTER Bedwars' camera code each frame.
 -- ══════════════════════════════════════════════════════════════
 local fpsSamples = {}
 local diagTimer  = 0
@@ -626,7 +670,7 @@ end)
 LocalPlayer.CharacterAdded:Connect(function()
     kb.lastVelocity = Vector3.zero
     aim.target      = nil
-    setRayFilterDirty(true)
+    -- _rayFilterDirty handled internally by Module2's own CharacterAdded connection
 end)
 
 -- ══════════════════════════════════════════════════════════════
