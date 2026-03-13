@@ -2,9 +2,7 @@
 
 local REPO_BASE = "https://raw.githubusercontent.com/Pistgoat/PISTA-V10/main"
 
--- ══════════════════════════════════════════════════════════════
--- SERVICES
--- ══════════════════════════════════════════════════════════════
+
 local Players              = game:GetService("Players")
 local RunService           = game:GetService("RunService")
 local ContextActionService = game:GetService("ContextActionService")
@@ -23,16 +21,12 @@ local tinsert, tremove, tclone = table.insert, table.remove, table.clone
 local mfloor = math.floor
 local v3new  = Vector3.new
 
--- ══════════════════════════════════════════════════════════════
--- CHARACTER HELPERS
--- ══════════════════════════════════════════════════════════════
+
 local function getChar()     return LocalPlayer.Character end
 local function getRoot()     local c = getChar(); return c and c:FindFirstChild("HumanoidRootPart") end
 local function getHumanoid() local c = getChar(); return c and c:FindFirstChild("Humanoid") end
 
--- ══════════════════════════════════════════════════════════════
--- ANTI-AFK
--- ══════════════════════════════════════════════════════════════
+
 pcall(function()
     local VU = game:GetService("VirtualUser")
     LocalPlayer.Idled:Connect(function()
@@ -70,7 +64,7 @@ for _, name in ipairs(MODULE_NAMES) do
     end)
 end
 
-
+-- Wait for ALL fetches to complete before executing anything
 for _, name in ipairs(MODULE_NAMES) do
     while not _ready[name] do task.wait() end
     if not _cache[name] then
@@ -97,7 +91,9 @@ local Profile     = loadMod("Module7_Profile.lua", nil)
 local P           = Profile.P
 local saveProfile = Profile.saveProfile
 
-═
+-- ══════════════════════════════════════════════════════════════
+-- STATE TABLES  (all features, loaded from saved profile)
+-- ══════════════════════════════════════════════════════════════
 
 local ka = {
     enabled      = P("ka_enabled",      false),
@@ -432,7 +428,15 @@ local function showToggleNotif(title, message, isOn)
     end)
 end
 
-
+-- ══════════════════════════════════════════════════════════════
+-- KEYBINDS — ContextActionService
+--
+-- WHY: Bedwars marks almost every keypress as gameProcessed=true.
+-- UserInputService InputBegan checks `if gp then return end` which
+-- silently drops R and sometimes Q. ContextActionService fires
+-- BEFORE the game's input processing so gp is irrelevant.
+-- Returning Pass means Bedwars still gets the key too.
+-- ══════════════════════════════════════════════════════════════
 ContextActionService:BindAction(
     "PISTA_ToggleKillAura",
     function(_, inputState, _)
@@ -474,7 +478,12 @@ ContextActionService:BindAction(
     Enum.KeyCode.R
 )
 
-
+-- ══════════════════════════════════════════════════════════════
+-- RENDERSTEPPED — ESP + FPS diag
+-- NOTE: doAimAssist is NOT called here.
+-- Module4 runs its own BindToRenderStep at Last+1 priority
+-- so it executes AFTER Bedwars' camera code each frame.
+-- ══════════════════════════════════════════════════════════════
 local fpsSamples = {}
 local diagTimer  = 0
 
@@ -508,7 +517,9 @@ RunService.RenderStepped:Connect(function(dt)
     end
 end)
 
-═
+-- ══════════════════════════════════════════════════════════════
+-- HEARTBEAT — KB Reducer + Kit ESP tick + GC
+-- ══════════════════════════════════════════════════════════════
 local gcTimer = 0
 
 RunService.Heartbeat:Connect(function(dt)
@@ -536,7 +547,9 @@ RunService.Heartbeat:Connect(function(dt)
     end
 end)
 
-
+-- ══════════════════════════════════════════════════════════════
+-- PLAYER / CHARACTER EVENTS
+-- ══════════════════════════════════════════════════════════════
 local function onNewChar(player, char)
     task.wait(0.5)
     if player == LocalPlayer then
@@ -583,10 +596,14 @@ LocalPlayer.CharacterAdded:Connect(function()
     setRayFilterDirty(true)
 end)
 
-
+-- ══════════════════════════════════════════════════════════════
+-- START ENTITY LIB
+-- ══════════════════════════════════════════════════════════════
 entitylib.start()
 
-
+-- ══════════════════════════════════════════════════════════════
+-- DONE
+-- ══════════════════════════════════════════════════════════════
 Window:Notify({
     Title = "WOLFVXPE REWRITE",
     Desc  = "Ready — Q = Kill Aura  •  R = Aim Assist  •  RightShift = Menu",
