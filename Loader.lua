@@ -1,6 +1,6 @@
 -- ══════════════════════════════════════════════════════════════
--- WOLFVXPE REWRITE  —  LOADER.LUA
---
+-- WOLFVXPE REWRITE — LOADER.LUA
+-- Execute:
 --   loadstring(game:HttpGet(
 --     "https://raw.githubusercontent.com/Pistgoat/PISTA-V10/main/Loader.lua"
 --   ))()
@@ -11,15 +11,14 @@ local REPO_BASE = "https://raw.githubusercontent.com/Pistgoat/PISTA-V10/main"
 -- ══════════════════════════════════════════════════════════════
 -- SERVICES
 -- ══════════════════════════════════════════════════════════════
-local Players              = game:GetService("Players")
-local RunService           = game:GetService("RunService")
-local ContextActionService = game:GetService("ContextActionService")
-local TweenService         = game:GetService("TweenService")
-local ReplicatedStorage    = game:GetService("ReplicatedStorage")
-local Lighting             = game:GetService("Lighting")
-local Stats                = game:GetService("Stats")
-local CoreGui              = game:GetService("CoreGui")
-local UserInputService     = game:GetService("UserInputService")
+local Players          = game:GetService("Players")
+local RunService       = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local TweenService     = game:GetService("TweenService")
+local ReplicatedStorage= game:GetService("ReplicatedStorage")
+local Lighting         = game:GetService("Lighting")
+local Stats            = game:GetService("Stats")
+local CoreGui          = game:GetService("CoreGui")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui   = LocalPlayer:WaitForChild("PlayerGui")
@@ -33,8 +32,8 @@ local v3new  = Vector3.new
 -- CHARACTER HELPERS
 -- ══════════════════════════════════════════════════════════════
 local function getChar()     return LocalPlayer.Character end
-local function getRoot()     local c = getChar(); return c and c:FindFirstChild("HumanoidRootPart") end
-local function getHumanoid() local c = getChar(); return c and c:FindFirstChild("Humanoid") end
+local function getRoot()     local c=getChar(); return c and c:FindFirstChild("HumanoidRootPart") end
+local function getHumanoid() local c=getChar(); return c and c:FindFirstChild("Humanoid") end
 
 -- ══════════════════════════════════════════════════════════════
 -- ANTI-AFK
@@ -49,130 +48,8 @@ pcall(function()
 end)
 
 -- ══════════════════════════════════════════════════════════════
--- TOGGLE NOTIFICATION
--- 100% self-contained — no UI library, no module dependencies.
--- Works even if every other module fails to load.
--- CoreGui parent (DisplayOrder 99999, IgnoreGuiInset) means it
--- renders on top of every game UI layer without exception.
--- Falls back to PlayerGui if CoreGui write is blocked.
--- ══════════════════════════════════════════════════════════════
-local C = {
-    BG       = Color3.fromRGB(8,   4,  18),
-    BG_MID   = Color3.fromRGB(20,  8,  42),
-    PRIMARY  = Color3.fromRGB(168, 85, 247),
-    DEEP     = Color3.fromRGB(88,  28, 135),
-    GLOW     = Color3.fromRGB(216, 180, 254),
-    DIM      = Color3.fromRGB(140, 100, 200),
-    GREEN    = Color3.fromRGB(134, 239, 172),
-}
-
-local function showToggleNotif(title, message, isOn)
-    task.spawn(function()
-        -- Find safest parent — CoreGui beats PlayerGui
-        local guiParent = PlayerGui
-        pcall(function()
-            local probe = Instance.new("Folder")
-            probe.Parent = CoreGui
-            probe:Destroy()
-            guiParent = CoreGui
-        end)
-
-        -- Unique name so multiple notifications stack without collision
-        local uid = tostring(mfloor(tick() * 10000))
-
-        local sg = Instance.new("ScreenGui")
-        sg.Name           = "PISTA_Notif_" .. uid
-        sg.ResetOnSpawn   = false
-        sg.DisplayOrder   = 99999
-        sg.IgnoreGuiInset = true   -- renders over ALL Bedwars UI
-        sg.Parent         = guiParent
-
-        local accent = isOn and C.GREEN or C.PRIMARY
-
-        -- ── outer frame ───────────────────────────────────────
-        local frame = Instance.new("Frame", sg)
-        frame.Name                   = "Toast"
-        frame.Size                   = UDim2.new(0, 320, 0, 58)
-        frame.AnchorPoint            = Vector2.new(1, 1)
-        frame.Position               = UDim2.new(1, -14, 1, 80) -- starts off-screen
-        frame.BackgroundColor3       = C.BG
-        frame.BackgroundTransparency = 0.05
-        frame.BorderSizePixel        = 0
-        Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 10)
-
-        -- gradient background
-        local grad = Instance.new("UIGradient", frame)
-        grad.Color    = ColorSequence.new({
-            ColorSequenceKeypoint.new(0, C.BG),
-            ColorSequenceKeypoint.new(1, C.BG_MID),
-        })
-        grad.Rotation = 90
-
-        -- border stroke
-        local stroke = Instance.new("UIStroke", frame)
-        stroke.Color        = accent
-        stroke.Thickness    = 1.4
-        stroke.Transparency = 0.18
-
-        -- left accent bar
-        local bar = Instance.new("Frame", frame)
-        bar.Size             = UDim2.new(0, 3, 1, -14)
-        bar.Position         = UDim2.new(0, 8, 0, 7)
-        bar.BackgroundColor3 = accent
-        bar.BorderSizePixel  = 0
-        Instance.new("UICorner", bar).CornerRadius = UDim.new(1, 0)
-
-        -- title row
-        local lblTitle = Instance.new("TextLabel", frame)
-        lblTitle.Size                   = UDim2.new(1, -24, 0, 20)
-        lblTitle.Position               = UDim2.new(0, 17, 0, 8)
-        lblTitle.BackgroundTransparency = 1
-        lblTitle.Text                   = title .. "   " .. (isOn and "[ ON ]" or "[ OFF ]")
-        lblTitle.TextColor3             = isOn and C.GREEN or C.GLOW
-        lblTitle.TextStrokeColor3       = C.DEEP
-        lblTitle.TextStrokeTransparency = 0.45
-        lblTitle.Font                   = Enum.Font.GothamBold
-        lblTitle.TextSize               = 13
-        lblTitle.TextXAlignment         = Enum.TextXAlignment.Left
-        lblTitle.RichText               = false
-
-        -- subtitle row
-        local lblSub = Instance.new("TextLabel", frame)
-        lblSub.Size                   = UDim2.new(1, -24, 0, 13)
-        lblSub.Position               = UDim2.new(0, 17, 0, 32)
-        lblSub.BackgroundTransparency = 1
-        lblSub.Text                   = message
-        lblSub.TextColor3             = C.DIM
-        lblSub.Font                   = Enum.Font.Gotham
-        lblSub.TextSize               = 11
-        lblSub.TextXAlignment         = Enum.TextXAlignment.Left
-        lblSub.RichText               = false
-
-        -- ── slide IN from below ───────────────────────────────
-        TweenService:Create(frame,
-            TweenInfo.new(0.42, Enum.EasingStyle.Back, Enum.EasingDirection.Out),
-            { Position = UDim2.new(1, -14, 1, -14) }
-        ):Play()
-
-        task.wait(2.6)
-
-        -- ── slide OUT + fade ──────────────────────────────────
-        local outTI = TweenInfo.new(0.26, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
-        TweenService:Create(frame, outTI,
-            { Position = UDim2.new(1, -14, 1, 80), BackgroundTransparency = 1 }):Play()
-        TweenService:Create(stroke,   outTI, { Transparency = 1 }):Play()
-        TweenService:Create(bar,      outTI, { BackgroundTransparency = 1 }):Play()
-        TweenService:Create(lblTitle, outTI, { TextTransparency = 1, TextStrokeTransparency = 1 }):Play()
-        TweenService:Create(lblSub,   outTI, { TextTransparency = 1 }):Play()
-
-        task.wait(0.32)
-        pcall(function() sg:Destroy() end)
-    end)
-end
-
--- ══════════════════════════════════════════════════════════════
 -- PARALLEL MODULE PREFETCH
--- All 9 files downloaded simultaneously — load time = slowest
+-- All modules downloaded simultaneously — load time = slowest
 -- single fetch, not the sum of all fetches.
 -- ══════════════════════════════════════════════════════════════
 local MODULE_NAMES = {
@@ -193,11 +70,9 @@ local _ready = {}
 for _, name in ipairs(MODULE_NAMES) do
     _ready[name] = false
     task.spawn(function()
-        local ok, src = pcall(game.HttpGet, game, REPO_BASE .. "/" .. name, true)
+        local ok, src = pcall(game.HttpGet, game, REPO_BASE.."/"..name, true)
         _cache[name] = ok and src or nil
-        if not ok then
-            warn("[WolfVXPE] Fetch failed: " .. name .. " — " .. tostring(src))
-        end
+        if not ok then warn("[WolfVXPE] HttpGet failed: "..name.." — "..tostring(src)) end
         _ready[name] = true
     end)
 end
@@ -205,18 +80,17 @@ end
 for _, name in ipairs(MODULE_NAMES) do
     while not _ready[name] do task.wait() end
     if not _cache[name] then
-        error("[WolfVXPE] Cannot boot — missing: " .. name)
+        error("[WolfVXPE] Missing source — cannot continue: "..name)
     end
 end
 
-print("[WolfVXPE] All modules fetched. Booting...")
+print("[WolfVXPE] All "..#MODULE_NAMES.." modules fetched. Booting...")
 
 local function loadMod(filename, ctx)
     local fn, err = loadstring(_cache[filename])
-    assert(fn, "[WolfVXPE] Compile error in " .. filename .. ":\n" .. tostring(err))
+    assert(fn, "[WolfVXPE] Compile error in "..filename..":\n"..tostring(err))
     local factory = fn()
-    assert(type(factory) == "function",
-        "[WolfVXPE] " .. filename .. " must return function(ctx)")
+    assert(type(factory)=="function", "[WolfVXPE] "..filename.." must return function(ctx)")
     return factory(ctx)
 end
 
@@ -252,6 +126,9 @@ local kb = {
     lastVelocity = Vector3.zero,
 }
 
+-- aim table — passed by reference into Module4.
+-- Toggling aim.enabled here is instantly visible inside Module4's
+-- render loop because Lua tables are always references.
 local aim = {
     enabled   = P("aim_enabled",   false),
     teamCheck = P("aim_teamCheck", false),
@@ -330,13 +207,12 @@ local function collectAndSave()
     })
 end
 
--- Auto-save every 10s
 task.spawn(function()
     while true do task.wait(10); collectAndSave() end
 end)
 
 -- ══════════════════════════════════════════════════════════════
--- SERVICES BUNDLE  (passed to modules)
+-- SERVICES BUNDLE
 -- ══════════════════════════════════════════════════════════════
 local services = {
     Players           = Players,
@@ -362,23 +238,26 @@ local GUI = loadMod("Module1_GUI.lua", {
     mfloor         = mfloor,
 })
 
-local Window       = GUI.Window
-local KATab        = GUI.KATab
-local CombatTab    = GUI.CombatTab
-local ESPTab       = GUI.ESPTab
-local FPSTab       = GUI.FPSTab
-local CredTab      = GUI.CredTab
-local CLTab        = GUI.CLTab
-local updateESP    = GUI.updateESP
-local refreshESP   = GUI.refreshESP
-local createESPFor = GUI.createESPFor
-local removeESPFor = GUI.removeESPFor
+local Window         = GUI.Window
+local KATab          = GUI.KATab
+local CombatTab      = GUI.CombatTab
+local ESPTab         = GUI.ESPTab
+local FPSTab         = GUI.FPSTab
+local CredTab        = GUI.CredTab
+local CLTab          = GUI.CLTab
+local updateESP      = GUI.updateESP
+local refreshESP     = GUI.refreshESP
+local createESPFor   = GUI.createESPFor
+local removeESPFor   = GUI.removeESPFor
+local PURPLE_PRIMARY = GUI.PURPLE_PRIMARY
+local PURPLE_DEEP    = GUI.PURPLE_DEEP
+local PURPLE_GLOW    = GUI.PURPLE_GLOW
+local PURPLE_BG      = GUI.PURPLE_BG
+local PURPLE_BG_MID  = GUI.PURPLE_BG_MID
+local PURPLE_DIM     = GUI.PURPLE_DIM
 
 -- ══════════════════════════════════════════════════════════════
 -- MODULE 2: KILL AURA
--- ctx matches exactly what Module2_KillAura.lua expects:
---   ctx.services, ctx.ka, ctx.KATab, ctx.collectAndSave, ctx.mfloor
--- Returns: { entitylib, getBedwarsReady, setRayFilterDirty }
 -- ══════════════════════════════════════════════════════════════
 local KillAura = loadMod("Module2_KillAura.lua", {
     services       = services,
@@ -404,8 +283,9 @@ loadMod("Module3_KBReducer.lua", {
 
 -- ══════════════════════════════════════════════════════════════
 -- MODULE 4: AIM ASSIST
--- Self-managed BindToRenderStep at Last+1 — runs after Bedwars
--- camera code every frame so the CFrame change sticks.
+-- Module4 owns its BindToRenderStep at Last+1.
+-- aim table is shared by reference — toggling aim.enabled below
+-- is immediately visible inside Module4's render loop.
 -- ══════════════════════════════════════════════════════════════
 loadMod("Module4_AimAssist.lua", {
     CombatTab      = CombatTab,
@@ -468,43 +348,127 @@ loadMod("Module9_Animations.lua", {
 })
 
 -- ══════════════════════════════════════════════════════════════
--- KEYBINDS — ContextActionService
---
--- WHY NOT UserInputService.InputBegan:
---   Bedwars sets gameProcessedEvent = true on nearly every key.
---   InputBegan's `gp` param becomes true and `if gp then return end`
---   silently swallows the press. ContextActionService fires BEFORE
---   the game's input pipeline — gp is irrelevant here.
---   Returning Pass means Bedwars still receives the key too.
+-- BULLETPROOF TOGGLE NOTIFICATION
 -- ══════════════════════════════════════════════════════════════
-ContextActionService:BindAction(
-    "PISTA_ToggleKA",
-    function(_, state, _)
-        if state ~= Enum.UserInputState.Begin then
-            return Enum.ContextActionResult.Pass
-        end
+local function showToggleNotif(title, message, isOn)
+    task.spawn(function()
+        local guiParent = PlayerGui
+        pcall(function()
+            local t = Instance.new("Folder")
+            t.Parent = CoreGui
+            t:Destroy()
+            guiParent = CoreGui
+        end)
+
+        local tGui = Instance.new("ScreenGui")
+        tGui.Name           = "PISTA_TN_"..tostring(mfloor(tick()*1000))
+        tGui.ResetOnSpawn   = false
+        tGui.DisplayOrder   = 99999
+        tGui.IgnoreGuiInset = true
+        tGui.Parent         = guiParent
+
+        local borderCol = isOn and Color3.fromRGB(134,239,172) or PURPLE_PRIMARY
+
+        local toast = Instance.new("Frame", tGui)
+        toast.Size                   = UDim2.new(0,340,0,60)
+        toast.AnchorPoint            = Vector2.new(1,1)
+        toast.Position               = UDim2.new(1,-16,1,90)
+        toast.BackgroundColor3       = PURPLE_BG
+        toast.BackgroundTransparency = 0.04
+        toast.BorderSizePixel        = 0
+        Instance.new("UICorner", toast).CornerRadius = UDim.new(0,10)
+
+        local tStroke = Instance.new("UIStroke", toast)
+        tStroke.Color        = borderCol
+        tStroke.Thickness    = 1.3
+        tStroke.Transparency = 0.15
+
+        local tBgGrad = Instance.new("UIGradient", toast)
+        tBgGrad.Color    = ColorSequence.new({
+            ColorSequenceKeypoint.new(0, PURPLE_BG),
+            ColorSequenceKeypoint.new(1, PURPLE_BG_MID),
+        })
+        tBgGrad.Rotation = 90
+
+        local tAccent = Instance.new("Frame", toast)
+        tAccent.Size             = UDim2.new(0,3,1,-14)
+        tAccent.Position         = UDim2.new(0,8,0,7)
+        tAccent.BackgroundColor3 = borderCol
+        tAccent.BorderSizePixel  = 0
+        Instance.new("UICorner", tAccent).CornerRadius = UDim.new(1,0)
+
+        local tTop = Instance.new("TextLabel", toast)
+        tTop.Size                   = UDim2.new(1,-26,0,22)
+        tTop.Position               = UDim2.new(0,18,0,7)
+        tTop.BackgroundTransparency = 1
+        tTop.Text                   = title.."   "..(isOn and "[ ON ]" or "[ OFF ]")
+        tTop.TextColor3             = isOn and Color3.fromRGB(134,239,172) or PURPLE_GLOW
+        tTop.TextStrokeColor3       = PURPLE_DEEP
+        tTop.TextStrokeTransparency = 0.5
+        tTop.Font                   = Enum.Font.GothamBold
+        tTop.TextSize               = 13
+        tTop.TextXAlignment         = Enum.TextXAlignment.Left
+
+        local tSub = Instance.new("TextLabel", toast)
+        tSub.Size                   = UDim2.new(1,-26,0,13)
+        tSub.Position               = UDim2.new(0,18,0,33)
+        tSub.BackgroundTransparency = 1
+        tSub.Text                   = message
+        tSub.TextColor3             = PURPLE_DIM
+        tSub.Font                   = Enum.Font.Gotham
+        tSub.TextSize               = 11
+        tSub.TextXAlignment         = Enum.TextXAlignment.Left
+
+        TweenService:Create(toast,
+            TweenInfo.new(0.44, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+                Position = UDim2.new(1,-16,1,-16),
+            }):Play()
+
+        task.wait(2.6)
+
+        local outInfo = TweenInfo.new(0.28, Enum.EasingStyle.Quad, Enum.EasingDirection.In)
+        TweenService:Create(toast,  outInfo, {Position=UDim2.new(1,-16,1,90), BackgroundTransparency=1}):Play()
+        TweenService:Create(tTop,   outInfo, {TextTransparency=1}):Play()
+        TweenService:Create(tSub,   outInfo, {TextTransparency=1}):Play()
+        TweenService:Create(tAccent,outInfo, {BackgroundTransparency=1}):Play()
+        task.wait(0.35)
+        pcall(function() tGui:Destroy() end)
+    end)
+end
+
+-- ══════════════════════════════════════════════════════════════
+-- KEYBINDS
+--
+-- WHY UserInputService AND why we ignore the gp parameter:
+--   Bedwars marks every key as gameProcessed = true.
+--   The old pattern `if gp then return end` silently dropped R
+--   and Q. ContextActionService has the same problem because
+--   Bedwars binds its own CAS actions for R *after* our script
+--   loads (last-bound = highest priority in CAS), consuming the
+--   input before our callback sees it.
+--
+--   The fix: use UserInputService.InputBegan and simply NEVER
+--   look at the gp parameter. We receive every keypress first
+--   because exploit LocalScripts run at top level. Bedwars still
+--   gets the key because we don't consume it — we only read it.
+-- ══════════════════════════════════════════════════════════════
+UserInputService.InputBegan:Connect(function(input, _gp)
+    -- _gp intentionally unused — Bedwars sets it true for everything
+
+    if input.KeyCode == Enum.KeyCode.Q then
         ka.enabled = not ka.enabled
         collectAndSave()
         showToggleNotif(
             "Kill Aura",
             ka.enabled
-                and "Vape Engine  •  " .. (getBedwarsReady() and "SwingMode" or "FireServer")
+                and ("Vape Engine  •  "..(getBedwarsReady() and "SwingMode" or "FireServer"))
                 or  "Disabled",
             ka.enabled
         )
-        return Enum.ContextActionResult.Pass
-    end,
-    false,
-    Enum.KeyCode.Q
-)
 
-ContextActionService:BindAction(
-    "PISTA_ToggleAim",
-    function(_, state, _)
-        if state ~= Enum.UserInputState.Begin then
-            return Enum.ContextActionResult.Pass
-        end
+    elseif input.KeyCode == Enum.KeyCode.R then
         aim.enabled = not aim.enabled
+        -- Clear locked target immediately when turning off
         if not aim.enabled then aim.target = nil end
         collectAndSave()
         showToggleNotif(
@@ -512,15 +476,12 @@ ContextActionService:BindAction(
             aim.enabled and "Locking to nearest enemy torso" or "Disabled",
             aim.enabled
         )
-        return Enum.ContextActionResult.Pass
-    end,
-    false,
-    Enum.KeyCode.R
-)
+    end
+end)
 
 -- ══════════════════════════════════════════════════════════════
 -- RENDERSTEPPED — ESP + FPS diag
--- (aim assist is NOT called here — Module4 owns its own loop)
+-- (aim handled inside Module4 at RenderPriority.Last+1)
 -- ══════════════════════════════════════════════════════════════
 local fpsSamples = {}
 local diagTimer  = 0
@@ -529,7 +490,7 @@ RunService.RenderStepped:Connect(function(dt)
     updateESP()
     refreshESP(dt)
 
-    fpsSamples[#fpsSamples + 1] = dt > 0 and 1 / dt or 60
+    fpsSamples[#fpsSamples+1] = dt > 0 and 1/dt or 60
     if #fpsSamples > 30 then tremove(fpsSamples, 1) end
 
     diagTimer = diagTimer + dt
@@ -538,12 +499,14 @@ RunService.RenderStepped:Connect(function(dt)
         local sum = 0
         for _, v in ipairs(fpsSamples) do sum = sum + v end
         local avgFps = mfloor(sum / #fpsSamples)
+
         updatePing()
         local pm  = mfloor(pingData.smooth)
         local pc  = pm < 50 and "LOW" or pm < 100 and "MID" or "HIGH"
         local ft  = avgFps >= 60 and "GREAT" or avgFps >= 30 and "OK" or "LOW"
-        local kaS = ka.enabled  and "ON (" .. (getBedwarsReady() and "Vape" or "FS") .. ")" or "OFF"
+        local kaS = ka.enabled  and "ON ("..(getBedwarsReady() and "Vape" or "FS")..")" or "OFF"
         local aaS = aim.enabled and "ON" or "OFF"
+
         pcall(function()
             diagBlock:SetCode(string.format(
                 "FPS        : %d  [%s]\nPING       : %dms  [%s]\nKill Aura  : %s  |  Aim: %s",
@@ -559,7 +522,6 @@ end)
 local gcTimer = 0
 
 RunService.Heartbeat:Connect(function(dt)
-    -- KB Reducer
     local root = getRoot()
     local hum  = getHumanoid()
     if root and hum and hum.Health > 0 and kb.enabled and kb.strength > 0 then
@@ -567,7 +529,7 @@ RunService.Heartbeat:Connect(function(dt)
         local delta = (cur - kb.lastVelocity).Magnitude
         if delta > 10 then
             local m       = 1 - kb.strength
-            local reduced = v3new(cur.X * m, cur.Y, cur.Z * m)
+            local reduced = v3new(cur.X*m, cur.Y, cur.Z*m)
             pcall(function() root.AssemblyLinearVelocity = reduced end)
             kb.lastVelocity = reduced
         else
@@ -575,12 +537,13 @@ RunService.Heartbeat:Connect(function(dt)
         end
     end
 
-    -- Kit ESP 30s prune tick
     if kitTick then kitTick(dt) end
 
-    -- GC every 60s
     gcTimer = gcTimer + dt
-    if gcTimer >= 60 then gcTimer = 0; collectgarbage() end
+    if gcTimer >= 60 then
+        gcTimer = 0
+        collectgarbage()
+    end
 end)
 
 -- ══════════════════════════════════════════════════════════════
@@ -633,22 +596,16 @@ LocalPlayer.CharacterAdded:Connect(function()
 end)
 
 -- ══════════════════════════════════════════════════════════════
--- START ENTITY LIB  (after all hooks are wired)
+-- START ENTITY LIB
 -- ══════════════════════════════════════════════════════════════
 entitylib.start()
 
 -- ══════════════════════════════════════════════════════════════
--- DONE — show startup notification
+-- DONE
 -- ══════════════════════════════════════════════════════════════
-pcall(function()
-    Window:Notify({
-        Title = "WOLFVXPE REWRITE",
-        Desc  = "Ready — Q = Kill Aura  •  R = Aim Assist  •  RightShift = Menu",
-        Time  = 5,
-    })
-end)
-
--- Also show our own notif so it appears even if library Notify fails
-showToggleNotif("WOLFVXPE REWRITE", "Q = KA   R = Aim   RShift = Menu", true)
-
+Window:Notify({
+    Title = "WOLFVXPE REWRITE",
+    Desc  = "Ready — Q = Kill Aura  •  R = Aim Assist  •  RightShift = Menu",
+    Time  = 5,
+})
 print("[ WOLFVXPE REWRITE ] Loaded — Q=KA  R=Aim  RightShift=Menu")
